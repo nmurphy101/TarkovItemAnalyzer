@@ -127,10 +127,6 @@ class GUI(App):
         self.alive_time = 6000
         self.gui_queue = gui_queue
         self.p_Manager = ProcessManager(self.gui_queue, self.cmd_queue)
-        #
-        self.widget = Toplevel(self.menuFrame)
-        self.widget.withdraw()
-        self.widget.wm_attributes('-alpha', 0.75)
         #Buttons
         self.start_btn = Button(self.menuFrame, text="Start",
                               command=self.startProcessManager)
@@ -189,33 +185,33 @@ class GUI(App):
         if item:
             msg = item[0]
             display_info = item[1]
-            #
+
+            widget = Toplevel()
+            widget.wm_attributes('-alpha', 0.75)
             
             display_info_keys = display_info.keys()
             # If width and height isn't included let tkinter decide
             if "w" in display_info_keys and "h" in display_info_keys:
-                self.widget.geometry(('%dx%d+%d+%d' % (display_info["w"], display_info["h"], 
+                widget.geometry(('%dx%d+%d+%d' % (display_info["w"], display_info["h"], 
                                                 display_info["x"], display_info["y"])))
             else:
-                self.widget.geometry(('+%d+%d' % (display_info["x"], display_info["y"])))
+                widget.geometry(('+%d+%d' % (display_info["x"], display_info["y"])))
             # Overlay widget settings
-            self.widget.attributes('-topmost', True)
-            self.widget.overrideredirect(True)
+            widget.attributes('-topmost', True)
+            widget.overrideredirect(True)
             # Overlay message settings
-            msg_text = Text(self.widget, font=("Ariel", 12))
-            msg_text.insert(INSERT, str(display_info["id"])+"\n"+msg)
+            msg_text = Text(widget, font=("Ariel", 12))
+            msg_text.insert(INSERT, str("\n"+msg))
             msg_text.pack(expand=1, fill='both')
             # Create a Button
-            # btn = Button(widget, text = 'Skip', bd = '5', command = self.widget.destroy)  
+            # btn = Button(widget, text = 'Skip', bd = '5', command = widget.destroy)  
             # # Set the position of button on the bottom of window.    
             # btn.pack(expand=1, fill='none')
             # Add to the window grid 
-            self.widget.grid_propagate(0)
-            # self.widget.update()
-            self.widget.deiconify()
-            self.widget.after(self.alive_time, self.widget.destroy())
-            # self.widget.after(self.alive_time, lambda: self.widget.withdraw())
-            # self.widgets.append(widget)
+            widget.grid_propagate(0)
+            widget.after(6000, widget.destroy())
+            # widget.after(self.alive_time, lambda: widget.withdraw())
+            # widgets.append(widget)
 
 class SettingsMenu(OtherFrame):
     """

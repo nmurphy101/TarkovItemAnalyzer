@@ -64,6 +64,7 @@ class ProcessManager(threading.Thread):
         self.lock = Lock()
         self.img = None
         self.listen = True
+        self.listenLock = False
 
     def run(self):
         # Make the workers and start them up
@@ -71,13 +72,13 @@ class ProcessManager(threading.Thread):
             Worker(self.process_queue, self.lock).start()
 
         # Take the screenshot for the item name (in inventory/stash) 
-        # This needs to happen here or sooner else it won't happen quick enough
+        # The imageGrab needs to happen here or sooner else it won't happen quick enough
         while True:
+            self.img = ImageGrab.grab()
             if not self.listen:
                 break
-            if keyboard.on_release("f"):
-                self.img = ImageGrab.grab()
-                self.on_release()
+            keyboard.on_press_key(key="f", callback=self.on_release)
+            self.listenLock = False
 
         # Listener Loop
         # with pkeyboard.Listener(on_press=self.on_press) as listener:
@@ -89,30 +90,36 @@ class ProcessManager(threading.Thread):
             self.process_queue.put(None)
         self.listen = False
 
-    def on_release(self):
-        # Check if tarkov is the focused window before doing anything else
-        active_process = GetWindowText(GetForegroundWindow())
-        if active_process != "" and active_process == "EscapeFromTarkov":
-            # Get the mouse position
-            pos = queryMousePosition()
+    def on_release(self, e):
+        if self.listenLock == False:
+            self.listenLock = True
+            print("Got Listen Lock")
+            # Check if tarkov is the focused window before doing anything else
+            active_process = GetWindowText(GetForegroundWindow())
+            if active_process != "" and active_process == "EscapeFromTarkov":
+                # Get the mouse position
+                pos = queryMousePosition()
 
-            # Generate a unique uuid for this instance
-            # id = uuid.uuid4()
+                # Generate a unique uuid for this instance
+                # id = uuid.uuid4()
 
-            # Figure out what this instance window popup should be located
-            display_info_init = {
-                "x": 0,
-                "y": 0,
-                "w": 210, # width for the Tk root
-                "h": 120, # height for the Tk root
-                # "id": id,
-            }
+                # Figure out what this instance window popup should be located
+                display_info_init = {
+                    "x": 0,
+                    "y": 0,
+                    "w": 210, # width for the Tk root
+                    "h": 120, # height for the Tk root
+                    # "id": id,
+                }
 
-            # Add this next instance to the process pool and run it with a pool worker
-            self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
+                # Add this next instance to the process pool and run it with a pool worker
+                self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
 
+            else:
+                logging.warning('target process is not active')
+            time.sleep(1)
         else:
-            logging.warning('target process is not active')
+            print("Listen Locked")
 
 class Worker(Process):
     """
@@ -272,7 +279,7 @@ class MessageFunc():
                         # Crop the image to the contour
                         x, y, w, h = cv2.boundingRect(c) 
                         # if w>130 and h<175 and h>95:
-                        if w>66 and w<1212 and h>66 and h<168:
+                        if w > 66 and w < 1212 and h > 66 and h < 168:
                             idx += 1 
                             new_img = image[y+13:y+h-11,x+11:x+w-11]
                             imagesList.append(new_img)
@@ -304,8 +311,8 @@ class MessageFunc():
 
                 # THRESH_TRUNC works for the container items
                 retval, threshold = cv2.threshold(image, 80, 255, cv2.THRESH_BINARY_INV)
-                # img = Image.fromarray(threshold, 'RGB')
-                # img.show()
+                img = Image.fromarray(threshold, 'RGB')
+                img.show()
 
                 # Run the parser
                 # text = pytesseract.image_to_string(threshold, lang='eng', config='--PSM 7 --OEM 0')

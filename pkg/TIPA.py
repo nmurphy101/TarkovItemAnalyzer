@@ -77,8 +77,8 @@ class ProcessManager(threading.Thread):
             self.img = ImageGrab.grab()
             if not self.listen:
                 break
-            keyboard.on_press_key(key="f", callback=self.on_press)
-            time.sleep(.5)
+            keyboard.on_press_key(key="f", callback=self.on_release)
+            time.sleep(.1)
             self.listen_lock = False
 
         # # Listener Loop
@@ -97,35 +97,34 @@ class ProcessManager(threading.Thread):
         keyboard.on_release_key(key="f", callback=self.on_release)
 
     def on_release(self, e):
-        pass
-        # if self.listen_lock == False:
-        #     self.listen_lock = True
-        #     print("Got Listen Lock / released f")
-        #     # Check if tarkov is the focused window before doing anything else
-        #     active_process = GetWindowText(GetForegroundWindow())
-        #     if active_process != "" and active_process == "EscapeFromTarkov":
-        #         # Get the mouse position
-        #         pos = queryMouse_position()
+        if self.listen_lock == False:
+            self.listen_lock = True
+            print("Got Listen Lock / released f")
+            # Check if tarkov is the focused window before doing anything else
+            active_process = GetWindowText(GetForegroundWindow())
+            if active_process != "" and active_process == "EscapeFromTarkov":
+                # Get the mouse position
+                pos = queryMouse_position()
 
-        #         # Generate a unique uuid for this instance
-        #         # id = uuid.uuid4()
+                # Generate a unique uuid for this instance
+                # id = uuid.uuid4()
 
-        #         # Figure out what this instance window popup should be located
-        #         display_info_init = {
-        #             "x": 0,
-        #             "y": 0,
-        #             "w": 210, # width for the Tk root
-        #             "h": 120, # height for the Tk root
-        #             # "id": id,
-        #         }
+                # Figure out what this instance window popup should be located
+                display_info_init = {
+                    "x": 0,
+                    "y": 0,
+                    "w": 210, # width for the Tk root
+                    "h": 120, # height for the Tk root
+                    # "id": id,
+                }
 
-        #         # Add this next instance to the process pool and run it with a pool worker
-        #         self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
+                # Add this next instance to the process pool and run it with a pool worker
+                self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
 
-        #     else:
-        #         logging.warning('target process is not active')
-        # else:
-        #     pass
+            else:
+                logging.warning('target process is not active')
+        else:
+            pass
 
 
 class Worker(Process):
@@ -351,9 +350,10 @@ class MessageFunc():
                 rep = {" ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
                     "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
                     "asses": "", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f",  "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
-                    "^['^a-zA-Z_]*$": "%E2%80%98", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X",
+                    "^['^a-zA-Z_]*$": "%E2%80%98", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND",
                     "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
-                    "DSCRX": "D3CRX", "((": "(", "))": ")"}
+                     "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12", "TOR": "Vector 9x19", "SPLIN": "SPLINT", "DSCRX": "D3CRX", "SSO": "SSD",
+                     "((": "(", "))": ")"}
                 rep = dict((re.escape(k), v) for k, v in rep.items())
                 pattern = re.compile("|".join(rep.keys()))
                 search_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,")
@@ -368,7 +368,7 @@ class MessageFunc():
 
 
                 # Regex replacement for building the item name for the URL
-                rep = {" ": "_"} # define desired replacements here
+                rep = {" ": "_", "(alu)": ""} # define desired replacements here
                 
                 # use these lines to do the replacement
                 rep = dict((re.escape(k), v) for k, v in rep.items())
@@ -476,7 +476,7 @@ class MessageFunc():
 
             # Popup display information/position dictionary
             display_info = {
-                "itemName": corrected_text,
+                "itemName": true_name,
                 "itemLastLowSoldPrice": itemLastLowSoldPrice,
                 "item24hrAvgPrice": item24hrAvgPrice,
                 "traderName": traderName,
@@ -486,10 +486,10 @@ class MessageFunc():
             display_info.update(self.display_info_init)
 
             # Make the popup string message
-            popupStr = ('{}\nLast lowest price: {}\n24hr Avg: {}\n{}: {}\n{}'.format(
+            popupStr = ('{}\n\nLast lowest price: {}\n           24hr Avg: {}\n {}: {}\n\n{}'.format(
                 display_info["itemName"], display_info["itemLastLowSoldPrice"],
-                display_info["item24hrAvgPrice"], display_info["traderName"],
-                display_info["itemTraderPrice"], display_info["quests"]
+                display_info["item24hrAvgPrice"], display_info["traderName"].strip(),
+                display_info["itemTraderPrice"].strip(), display_info["quests"]
             ))
 
             # Get the multiprocess lock and update the gui window
@@ -523,10 +523,12 @@ def get_full_item_name(search_text):
     print(search_url)
     h3_list = soup.select('h3', {"class": "LC20lb DKV0Md"})
     print(h3_list)
-    h3_text = h3_list[0].get_text().split(" - ")[0]
-    print(h3_text)
-    return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
-
+    if len(h3_list) != 0:
+        h3_text = h3_list[0].get_text().split(" - ")[0] 
+        print(h3_text)
+        return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
+    else:
+        return None
 
 def queryMouse_position():
     pt = POINT()

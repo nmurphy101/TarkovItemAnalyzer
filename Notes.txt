@@ -1,0 +1,25 @@
+Notes:
+
+fix the large memory leak caused by the remaking of the keyboard listener
+
+fix the small memory leak caused by pressing the f key
+
+fix ifak loose item not being name detected correctly
+
+fix the "overall" tab compare image getting convered up when
+the popup is overlayed.
+
+Extra datapoint ideas:
+ - "best_to_sell" either the trader or market
+   - market_price minus market_fee vs trader price
+
+Settings to make:
+ - popup time length
+ - popup opasity
+ - information checkboxes
+    - last_price, 24_avg, trader, trader_price, quest_info, best_to_sell, best_to_sell_price
+
+
+
+Limitation:
+The program can't differentiate loose ammo types that arent unique. IE  pst gzh (9x19 or 9x18, and etc)

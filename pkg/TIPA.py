@@ -18,19 +18,16 @@ import logging
 import sys
 import time
 import string
-import binascii
 import struct
 import re
 import requests
 import pytesseract
 import cv2
 import tempfile
-import uuid
 import urllib
 import numpy as np
 import queue as q
 import keyboard
-import pynput.keyboard as pkeyboard
 from multiprocessing import Pool, cpu_count, Queue, Process, Manager, Lock
 from ctypes import windll, Structure, c_long, byref
 from PIL import ImageGrab, Image, ImageFilter, ImageEnhance
@@ -55,18 +52,19 @@ class ProcessManager(threading.Thread):
     def __init__(self, gui_queue, command_queue):
         super(ProcessManager, self).__init__()
         self.daemon = True
+        self.setDaemon(True)
         self.need_quit = False
         # Setup the queues for the workers
         self.process_queue = Queue()
         self.command_queue = command_queue
         self.gui_queue = gui_queue
         self.position_list = []
-        self.num_workers = 1
+        self.num_workers = 3
         self.position_record = []
         self.lock = Lock()
         self.img = None
         self.listen = True
-        self.listenLock = False
+        self.listen_lock = False
 
     def run(self):
         # Make the workers and start them up
@@ -81,7 +79,7 @@ class ProcessManager(threading.Thread):
                 break
             keyboard.on_press_key(key="f", callback=self.on_press)
             time.sleep(.5)
-            self.listenLock = False
+            self.listen_lock = False
 
         # # Listener Loop
         # with pkeyboard.Listener(on_press=lambda var:self.on_press(var)) as listener:
@@ -93,40 +91,41 @@ class ProcessManager(threading.Thread):
         for _ in range(self.num_workers):
             self.process_queue.put(None)
         self.listen = False
+        threading.Thread.join(self, 3)
 
     def on_press(self, e):
         keyboard.on_release_key(key="f", callback=self.on_release)
 
-
     def on_release(self, e):
-        if self.listenLock == False:
-            self.listenLock = True
-            print("Got Listen Lock / released f")
-            # Check if tarkov is the focused window before doing anything else
-            active_process = GetWindowText(GetForegroundWindow())
-            if active_process != "" and active_process == "EscapeFromTarkov":
-                # Get the mouse position
-                pos = queryMouse_position()
+        pass
+        # if self.listen_lock == False:
+        #     self.listen_lock = True
+        #     print("Got Listen Lock / released f")
+        #     # Check if tarkov is the focused window before doing anything else
+        #     active_process = GetWindowText(GetForegroundWindow())
+        #     if active_process != "" and active_process == "EscapeFromTarkov":
+        #         # Get the mouse position
+        #         pos = queryMouse_position()
 
-                # Generate a unique uuid for this instance
-                # id = uuid.uuid4()
+        #         # Generate a unique uuid for this instance
+        #         # id = uuid.uuid4()
 
-                # Figure out what this instance window popup should be located
-                display_info_init = {
-                    "x": 0,
-                    "y": 0,
-                    "w": 210, # width for the Tk root
-                    "h": 120, # height for the Tk root
-                    # "id": id,
-                }
+        #         # Figure out what this instance window popup should be located
+        #         display_info_init = {
+        #             "x": 0,
+        #             "y": 0,
+        #             "w": 210, # width for the Tk root
+        #             "h": 120, # height for the Tk root
+        #             # "id": id,
+        #         }
 
-                # Add this next instance to the process pool and run it with a pool worker
-                self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
+        #         # Add this next instance to the process pool and run it with a pool worker
+        #         self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
 
-            else:
-                logging.warning('target process is not active')
-        else:
-            pass
+        #     else:
+        #         logging.warning('target process is not active')
+        # else:
+        #     pass
 
 
 class Worker(Process):
@@ -440,10 +439,10 @@ class MessageFunc():
                 found = True
 
             print("Can we make it here?")
-            print(page, page.status_code, mainTryAttempt)
             if page is None or page.status_code != 200:
                 mainTryAttempt = mainTryAttempt + 1
                 continue
+            print(page, page.status_code, mainTryAttempt)
 
             print("Getting Item Information...")
             # Parse scraped tarkov-market page

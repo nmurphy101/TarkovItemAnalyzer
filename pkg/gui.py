@@ -281,7 +281,7 @@ class GUI(App):
             self.popup_widget.deiconify()
 
             self.popup_widget.after(self.alive_time, lambda: self.popup_widget.withdraw())
-            self.popup_widget.after(self.alive_time, lambda: label.destroy())
+            self.popup_widget.after(self.alive_time-100, lambda: label.destroy())
             
             self.since_last_popup = time.now()
 

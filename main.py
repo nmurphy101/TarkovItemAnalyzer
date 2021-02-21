@@ -17,8 +17,10 @@ __version__ = '0.1.0'
 
 from tkinter import Tk
 from multiprocessing import Manager
+from multiprocessing import freeze_support
 from pkg.gui import GUI
 
+freeze_support()
 
 def main():
     

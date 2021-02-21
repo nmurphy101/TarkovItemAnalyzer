@@ -12,6 +12,8 @@
 
 
 import threading
+from datetime import datetime as time
+from datetime import timedelta 
 import queue as q
 import tkinter as Tk
 from tkinter import messagebox, Toplevel, Text, INSERT, Button, Label, TclError
@@ -141,8 +143,11 @@ class GUI(App):
     def __init__(self, parent, gui_queue, cmd_queue, title):
         super(GUI, self).__init__(parent, cmd_queue, title)
         self.alive_time = 6000
+        self.since_last_popup = time.now()
         self.gui_queue = gui_queue
         self.p_manager = ProcessManager(self.gui_queue, self.cmd_queue)
+        self.popup_widget = Toplevel()
+        self.popup_widget.withdraw()
         #Buttons
         self.start_btn = Button(self.menu_frame, text="Start",
                                 command=self.start_process_manager)
@@ -250,10 +255,13 @@ class GUI(App):
         '''
         pops a message overlay on the screen if one exists in the queue
         '''
-        #
-        try:
-            item = self.gui_queue.get(timeout=1)
-        except q.Empty:
+        if time.now() > self.since_last_popup + timedelta(0, self.alive_time/1000):
+            #
+            try:
+                item = self.gui_queue.get(timeout=1)
+            except q.Empty:
+                item = None
+        else:
             item = None
 
         if item:
@@ -261,16 +269,21 @@ class GUI(App):
             display_info = item[1]
             print("GUI: ", msg)
 
-            widget = Toplevel()
+            self.popup_widget.geometry('+%d+%d' % (0, 0))
 
-            widget.geometry('+%d+%d' % (0-80, 0-80))
+            self.popup_widget.attributes('-topmost', True)
+            self.popup_widget.overrideredirect(True)
 
-            widget.attributes('-topmost', True)
-            widget.overrideredirect(True)
-
-            label = Label(widget, text=str("\n"+msg))
+            label = Label(self.popup_widget, text=str("\n"+msg))
             label.pack(fill='x')
-            widget.after(self.alive_time, lambda: widget.destroy())
+
+            self.popup_widget.update()
+            self.popup_widget.deiconify()
+
+            self.popup_widget.after(self.alive_time, lambda: self.popup_widget.withdraw())
+            self.popup_widget.after(self.alive_time, lambda: label.destroy())
+            
+            self.since_last_popup = time.now()
 
             print("--Displayed--")
 

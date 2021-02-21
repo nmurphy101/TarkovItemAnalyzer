@@ -11,12 +11,14 @@
     :license: GPLv2, see LICENSE for more details.
 """
 
+
 __author__ = "Nicholas Murphy"
 __version__ = '0.1.0'
 
 from tkinter import Tk
-from multiprocessing import Manager, Queue
+from multiprocessing import Manager
 from pkg.gui import GUI
+
 
 def main():
     
@@ -24,7 +26,7 @@ def main():
         manager = Manager()
         gui_queue = manager.Queue()
         manager2 = Manager()
-        cmd_queue = manager.Queue()
+        cmd_queue = manager2.Queue()
 
         # Start the root app
         root = Tk()
@@ -36,9 +38,9 @@ def main():
 
         # End of the main app.
         root.mainloop()
-        if gui.p_Manager.is_alive():
-            gui.p_Manager.Close()
-            gui.p_Manager.join()
+        if gui.p_manager.is_alive():
+            gui.p_manager.Close()
+            gui.p_manager.join()
    
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""
+'''
     Tarkov Item Price Analyzer
     ~~~~~~~~~~
 
@@ -9,7 +9,8 @@
 
     :copyright: (c) 2021 by Nicholas Murphy.
     :license: GPLv2, see LICENSE for more details.
-"""
+'''
+
 
 import os
 import threading
@@ -40,8 +41,9 @@ from scipy import misc, cluster
 from win32gui import GetWindowText, GetForegroundWindow
 # pylint: enable=no-name-in-module
 
+
 class ProcessManager(threading.Thread):
-    """
+    '''
     ProcessManager
     ~~~~~~~~~~
 
@@ -49,7 +51,7 @@ class ProcessManager(threading.Thread):
     Listens for keyboard events and screenshots to find item names.
     Communicates with the GUI via a queue.
     Recieves instructions from the GUI via a different queue.
-    """
+    '''
     def __init__(self, gui_queue, command_queue):
         super(ProcessManager, self).__init__()
         self.daemon = True
@@ -77,28 +79,34 @@ class ProcessManager(threading.Thread):
             self.img = ImageGrab.grab()
             if not self.listen:
                 break
-            keyboard.on_press_key(key="f", callback=self.on_release)
+            keyboard.on_press_key(key="f", callback=self.on_press)
+            time.sleep(.5)
             self.listenLock = False
 
-        # Listener Loop
-        # with pkeyboard.Listener(on_press=self.on_press) as listener:
+        # # Listener Loop
+        # with pkeyboard.Listener(on_press=lambda var:self.on_press(var)) as listener:
         #     listener.join()
 
     def Close(self):
+        print("\nStopping")
         # Sentinel objects to allow clean shutdown: 1 per worker.
         for _ in range(self.num_workers):
             self.process_queue.put(None)
         self.listen = False
 
+    def on_press(self, e):
+        keyboard.on_release_key(key="f", callback=self.on_release)
+
+
     def on_release(self, e):
         if self.listenLock == False:
             self.listenLock = True
-            print("Got Listen Lock")
+            print("Got Listen Lock / released f")
             # Check if tarkov is the focused window before doing anything else
             active_process = GetWindowText(GetForegroundWindow())
             if active_process != "" and active_process == "EscapeFromTarkov":
                 # Get the mouse position
-                pos = queryMousePosition()
+                pos = queryMouse_position()
 
                 # Generate a unique uuid for this instance
                 # id = uuid.uuid4()
@@ -117,17 +125,17 @@ class ProcessManager(threading.Thread):
 
             else:
                 logging.warning('target process is not active')
-            time.sleep(1)
         else:
-            print("Listen Locked")
+            pass
+
 
 class Worker(Process):
-    """
+    '''
     Worker
     ~~~~~~~~~~
 
     Does stuff it's told to do in the queue.
-    """
+    '''
     def __init__(self, queue, lock):
         super(Worker, self).__init__()
         self.queue = queue
@@ -138,53 +146,35 @@ class Worker(Process):
         for process in iter(self.queue.get, None):
             process.run(self.lock)
 
+
 class MessageFunc():
-    """
+    '''
     MessageFunc
     ~~~~~~~~~~
 
     Gets a tarkov item name when a loose item in a match is picked up or when
     the item name box popup appears when mouse hovering the item in inventory/stash,
     and popups the item's market price and item quest information if it exists.
-    """
-    def __init__(self, img, mousePos, display_info_init, gui_queue):
+    '''
+    def __init__(self, img, mouse_pos, display_info_init, gui_queue):
         self.need_quit = False
         self.img = img
-        self.mousePos = mousePos
+        self.mouse_pos = mouse_pos
         self.display_info_init = display_info_init
         self.gui_queue = gui_queue
 
     def mse(self, imageA, imageB):
-        # the 'Mean Squared Error' between the two images is the
-        # sum of the squared difference between the two images;
-        # NOTE: the two images must have the same dimension
+        '''
+        The 'Mean Squared Error' between the two images is the
+        sum of the squared difference between the two images;
+        NOTE: the two images must have the same dimension
+        '''
         err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
         err /= float(imageA.shape[0] * imageA.shape[1])
 
         # return the MSE, the lower the error, the more "similar"
         # the two images are
         return err
-
-    def getFullItemName(self, search_text):
-        #M Make a gamepedia search on the shorthand name
-        try:
-            search_url = "https://www.google.com/search?&q=site%3Aescapefromtarkov.gamepedia.com+"+urllib.parse.quote_plus(search_text)
-            page = requests.get(search_url)
-            if page.status_code != 200:
-                raise Exception("Error Code: ", page.status_code)
-            else:
-                print("Search Good")
-        except Exception as e:
-            print("Unexpected error:", "Couldn't get fullname from gamepedia search")
-
-        # Parse scraped gamepedia search and make search on the found item page
-        soup = BeautifulSoup(page.content, 'html.parser')
-        print(search_url)
-        h3_list = soup.select('h3', {"class": "LC20lb DKV0Md"})
-        print(h3_list)
-        h3_text = h3_list[0].get_text().split(" - ")[0]
-        print(h3_text)
-        return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
 
     def run(self, lock):
         while not self.need_quit:
@@ -210,15 +200,15 @@ class MessageFunc():
                 pass
             compare_img = cv2.imread("compare_img.png")
 
-            # Select to check for the item name 
+            # Select to check for the item name
             diff_num = self.mse(check_img, compare_img)
             inventory = None
             print("Diff: ", diff_num)
             if diff_num < 370:
                 print("inventory")
                 # Search areas for the inventory/stash item
-                search_area1 = (self.mousePos["x"]-16, self.mousePos["y"]-42, self.mousePos["x"]+420, self.mousePos["y"]-10)
-                search_area2 = (self.mousePos["x"]-400, self.mousePos["y"]-65, self.mousePos["x"]+420, self.mousePos["y"]-10)
+                search_area1 = (self.mouse_pos["x"]-16, self.mouse_pos["y"]-42, self.mouse_pos["x"]+420, self.mouse_pos["y"]-10)
+                search_area2 = (self.mouse_pos["x"]-400, self.mouse_pos["y"]-65, self.mouse_pos["x"]+420, self.mouse_pos["y"]-10)
                 inventory = True
             else:
                 print("Loose")
@@ -227,7 +217,7 @@ class MessageFunc():
                 search_area1 = ((width/2)-39, (height/2)+42, (width/2)+40, (height/2)+57)
                 search_area2 = ((width/2)-32, (height/2)+42, (width/2)+32, (height/2)+57)
                 inventory = False
-            
+
             # Save the cropped screen image
             self.img.crop(search_area1).save(temp_name1, dpi=(500, 500))
             # Save the cropped screen image
@@ -249,11 +239,11 @@ class MessageFunc():
                     image2 = cv2.imread(temp_name2)
                     try: 
                         os.remove(temp_name1)
-                    except Exception as e:
+                    except Exception as exception:
                          pass
                     try: 
                         os.remove(temp_name2)
-                    except Exception as e:
+                    except Exception as exception:
                          pass
                     image = cv2.resize(image1, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
                 if mainTryAttempt == 2:
@@ -275,7 +265,7 @@ class MessageFunc():
                         peri = cv2.arcLength(c, True)
                         approx = cv2.approxPolyDP(c, 0.03 * peri, True)
                         cv2.drawContours(image, [approx], -1, (0, 255, 0), 2)
-                        
+
                         # Crop the image to the contour
                         x, y, w, h = cv2.boundingRect(c) 
                         # if w>130 and h<175 and h>95:
@@ -311,8 +301,8 @@ class MessageFunc():
 
                 # THRESH_TRUNC works for the container items
                 retval, threshold = cv2.threshold(image, 80, 255, cv2.THRESH_BINARY_INV)
-                img = Image.fromarray(threshold, 'RGB')
-                img.show()
+                # img = Image.fromarray(threshold, 'RGB')
+                # img.show()
 
                 # Run the parser
                 # text = pytesseract.image_to_string(threshold, lang='eng', config='--PSM 7 --OEM 0')
@@ -320,7 +310,7 @@ class MessageFunc():
 
                 # Display for testing
                 print("{{{ ", text, "}}}")
-                
+
                 # Check that words were discovered
                 # lineList = text.strip().split("\n")
                 # print(lineList, lineList[len(lineList)-1])
@@ -359,11 +349,16 @@ class MessageFunc():
                 print(corrected_text)
 
                 # Get the true item name by double checking it with the gamepedia page
-                rep = {" ": "+"}
+                rep = {" ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
+                    "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
+                    "asses": "", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f",  "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
+                    "^['^a-zA-Z_]*$": "%E2%80%98", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X",
+                    "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
+                    "DSCRX": "D3CRX", "((": "(", "))": ")"}
                 rep = dict((re.escape(k), v) for k, v in rep.items())
                 pattern = re.compile("|".join(rep.keys()))
                 search_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,")
-                corrected_text = self.getFullItemName(search_text)
+                corrected_text = get_full_item_name(search_text)
                 true_name = corrected_text
                 print(search_text, " to correct ", corrected_text)
 
@@ -372,25 +367,20 @@ class MessageFunc():
                     mainTryAttempt = mainTryAttempt + 1
                     continue
 
-                
+
                 # Regex replacement for building the item name for the URL
-                rep = {" ": "_", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
-                    "5.5645": "5.56x45", "MPS": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
-                    "asses": "", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f",  "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
-                    "^['^a-zA-Z_]*$": "%E2%80%98", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X",
-                    "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
-                    "DSCRX": "D3CRX", "((": "(", "))": ")"} # define desired replacements here
+                rep = {" ": "_"} # define desired replacements here
                 
                 # use these lines to do the replacement
                 rep = dict((re.escape(k), v) for k, v in rep.items())
                 pattern = re.compile("|".join(rep.keys()))
                 corrected_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,")
-                
+
                 # Display for testing
-                print(corrected_text)
+                # print(corrected_text)
 
                 # cv2.imshow('thresh', threshold)
-                
+
                 # Further clean up to get rid of rogue '_i' or 'i_' that made it past the filters
                 # if corrected_text.endswith("_i"):
                 #     corrected_text = corrected_text[:-2]
@@ -428,7 +418,7 @@ class MessageFunc():
                     print("Unable to find tarkov-market page")
                     print("="*80)
                     continue
-                
+
                 # Scrape the gamepedia item webpage for more details
                 try:
                     URL2 = 'https://escapefromtarkov.gamepedia.com/'+true_name
@@ -446,22 +436,27 @@ class MessageFunc():
                     continue
 
                 # Break the loop as we've found the item information
+                print("Found! Breaking")
                 found = True
 
-            if page.status_code != 200:
+            print("Can we make it here?")
+            print(page, page.status_code, mainTryAttempt)
+            if page is None or page.status_code != 200:
                 mainTryAttempt = mainTryAttempt + 1
                 continue
 
+            print("Getting Item Information...")
             # Parse scraped tarkov-market page
             tm_soup = BeautifulSoup(page.content, 'html.parser')
             # Parse scraped gamepedia page
-            gp_soup = BeautifulSoup(page.content, 'html.parser')
+            gp_soup = BeautifulSoup(page2.content, 'html.parser')
 
             # Get all the price values and quest information
-            itemLastLowSoldPrice = tm_soup.find("div", {"class": "price last"}).text
+            itemLastLowSoldPrice = tm_soup.find("div", {"class": "price last alt"}).text
             item24hrAvgPrice = tm_soup.findAll("div", {"class": "price-row"})[0].findChildren()[0].get_text()
-            traderName = tm_soup.findAll("div", {"class": "desc"})[2].parent.find("div", {"class": "title"}).find("a").get_text()
-            itemTraderPrice = tm_soup.findAll("div", {"class": "desc"})[2].parent.find("div", {"class": "price"}).get_text()
+            block_items = tm_soup.findAll("div", {"class": "block-item"})
+            traderName = block_items[len(block_items)-1].find("div", {"class": "bold"}).get_text()
+            itemTraderPrice = block_items[len(block_items)-1].find("div", {"class": "price alt"}).get_text()
             questsListText = []
             quests = ""
             questchecker = gp_soup.findAll("span", {"id": "Quests"})
@@ -493,9 +488,9 @@ class MessageFunc():
 
             # Make the popup string message
             popupStr = ('{}\nLast lowest price: {}\n24hr Avg: {}\n{}: {}\n{}'.format(
-            display_info["itemName"], display_info["itemLastLowSoldPrice"],
-            display_info["item24hrAvgPrice"], display_info["traderName"],
-            display_info["itemTraderPrice"], display_info["quests"]
+                display_info["itemName"], display_info["itemLastLowSoldPrice"],
+                display_info["item24hrAvgPrice"], display_info["traderName"],
+                display_info["itemTraderPrice"], display_info["quests"]
             ))
 
             # Get the multiprocess lock and update the gui window
@@ -503,32 +498,58 @@ class MessageFunc():
             self.gui_queue.put([popupStr, display_info])
             # app.pop_always_on_top(popupStr, display_info)
             lock.release()
-            
+
             # Stop the runloop for this process
             self.need_quit = True
+
 
 class POINT(Structure):
     _fields_ = [("x", c_long), ("y", c_long)]
 
-def queryMousePosition():
+
+def get_full_item_name(search_text):
+    # Make a gamepedia search on the shorthand name
+    try:
+        search_url = "https://www.google.com/search?&q=site%3Aescapefromtarkov.gamepedia.com+"+urllib.parse.quote_plus(search_text)
+        page = requests.get(search_url)
+        if page.status_code != 200:
+            raise Exception("Error Code: ", page.status_code)
+        else:
+            print("Search Good")
+    except Exception as exception:
+        print("Unexpected error:", "Couldn't get fullname from gamepedia search: ", exception)
+
+    # Parse scraped gamepedia search and make search on the found item page
+    soup = BeautifulSoup(page.content, 'html.parser')
+    print(search_url)
+    h3_list = soup.select('h3', {"class": "LC20lb DKV0Md"})
+    print(h3_list)
+    h3_text = h3_list[0].get_text().split(" - ")[0]
+    print(h3_text)
+    return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
+
+
+def queryMouse_position():
     pt = POINT()
     windll.user32.GetCursorPos(byref(pt))
-    return { "x": pt.x, "y": pt.y}
+    return {"x": pt.x, "y": pt.y}
+
 
 def remove_prefix(text, prefix):
     return text[text.startswith(prefix) and len(prefix):]
 
+
 def secondMax(list1):
     if len(list1) <= 1:
         return list1[0]
-    mx=max(list1[0],list1[1]) 
-    secondmax=min(list1[0],list1[1]) 
-    n =len(list1)
-    for i in range(2,n): 
-        if list1[i]>mx: 
-            secondmax=mx
-            mx=list1[i] 
-        elif list1[i]>secondmax and \
-            mx != list1[i]: 
-            secondmax=list1[i]
+    mx = max(list1[0], list1[1])
+    secondmax = min(list1[0], list1[1])
+    n = len(list1)
+    for i in range(2, n):
+        if list1[i] > mx:
+            secondmax = mx
+            mx = list1[i]
+        elif list1[i] > secondmax and \
+            mx != list1[i]:
+            secondmax = list1[i]
     return secondmax

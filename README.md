@@ -23,3 +23,6 @@ it'll give you the item information (this takes 2-3sec)
 - Not all items will work as I haven't tested for every one of them.
 - The "loose item" item information might be innacurate as tarkov uses shorthand names for loose items 
   (ie pst gzh vs pst gzh for two different calibers), so use inventory screen to get more accurate information.
+- In the current release there is a large-ish memory leak when you press the "stop" button then the "start" button. So just don't press "stop"
+- In the current release there is a small memory leak when you press "f" checking items for information.
+  - For both of these memory leaks I suggest closing the app and opening it again every so often to release the memory.  

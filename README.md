@@ -3,11 +3,13 @@ Tarkov Item Analyzer (TIA) allows you to know the price, and other informatino, 
 
 # How to run
 
-Use either the single exe file or the ziped directory
+Use either the single exe file or the ziped directory or run the "python main.py" command directly
 Using admin privileges start the single exe file or the exe file within the unzipped directory.
 in 2-6sec the gui will open
 press the "start" button to have the program watch tarkov
 Start playing Tarkov as normal
+
+Note: Current release isn't updated, though current build is so just run the "python main.py" command directly instead.
 
 # How to use
 

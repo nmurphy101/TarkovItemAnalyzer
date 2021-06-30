@@ -71,7 +71,7 @@ class ProcessManager(threading.Thread):
         for _ in range(self.num_workers):
             Worker(self.process_queue, self.lock).start()
 
-        # Take the screenshot for the item name (in inventory/stash) 
+        # Take the screenshot for the item name (in inventory/stash)
         # The imageGrab needs to happen here or sooner else it won't happen quick enough
         while True:
             self.img = ImageGrab.grab()
@@ -92,6 +92,9 @@ class ProcessManager(threading.Thread):
             self.process_queue.put(None)
         self.listen = False
         threading.Thread.join(self, 3)
+
+    def on_test(self):
+        pass
 
     def on_press(self, e):
         keyboard.on_release_key(key="f", callback=self.on_release)
@@ -119,7 +122,7 @@ class ProcessManager(threading.Thread):
                 }
 
                 # Add this next instance to the process pool and run it with a pool worker
-                self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))      
+                self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))
 
             else:
                 logging.warning('target process is not active')
@@ -192,7 +195,7 @@ class MessageFunc():
             check_img.save(temp_name0, dpi=(500, 500))
             # Read in the images to compair
             check_img = cv2.imread(temp_name0)
-            try: 
+            try:
                 os.remove(temp_name0)
             except Exception as e:
                 pass
@@ -235,11 +238,11 @@ class MessageFunc():
                 if mainTryAttempt == 1:
                     image1 = cv2.imread(temp_name1)
                     image2 = cv2.imread(temp_name2)
-                    try: 
+                    try:
                         os.remove(temp_name1)
                     except Exception as exception:
                          pass
-                    try: 
+                    try:
                         os.remove(temp_name2)
                     except Exception as exception:
                          pass
@@ -253,22 +256,22 @@ class MessageFunc():
                     edged = cv2.Canny(image, 10, 250)
                     # cv2.imshow("edged", edged)
                     # cv2.waitKey(0)
-                    (cnts, _) = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
-                    idx = 0 
+                    (cnts, _) = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    idx = 0
                     imagesList = []
                     areaList = []
                     i = 0
-                    for c in cnts: 
+                    for c in cnts:
                         ## For testing draw the contours
                         peri = cv2.arcLength(c, True)
                         approx = cv2.approxPolyDP(c, 0.03 * peri, True)
                         cv2.drawContours(image, [approx], -1, (0, 255, 0), 2)
 
                         # Crop the image to the contour
-                        x, y, w, h = cv2.boundingRect(c) 
+                        x, y, w, h = cv2.boundingRect(c)
                         # if w>130 and h<175 and h>95:
                         if w > 66 and w < 1212 and h > 66 and h < 168:
-                            idx += 1 
+                            idx += 1
                             new_img = image[y+13:y+h-11,x+11:x+w-11]
                             imagesList.append(new_img)
                             height, width, z = np.array(new_img).shape
@@ -290,11 +293,11 @@ class MessageFunc():
                     # inbuilt function to find the position of second maximum sized cropped image
                     secondMaxPos = areaList.index(secondMax(areaList))
                     # inbuilt function to find the position of maximum
-                    maxPos = areaList.index(max(areaList)) 
+                    maxPos = areaList.index(max(areaList))
                     # Get the chosen image
                     final_img = imagesList[maxPos]
                     image = final_img
-                    # cv2.imshow("final_image", image) 
+                    # cv2.imshow("final_image", image)
                     # cv2.waitKey(0)
 
                 # THRESH_TRUNC works for the container items
@@ -322,6 +325,9 @@ class MessageFunc():
                         print("Unexpected error:", "No Words Found")
                         mainTryAttempt = mainTryAttempt + 1
                         continue
+                    if wordlist[0] == "Body":
+                        print("inspected a body")
+                        continue
 
                 print("WORDS1: ", wordlist)
                 newWordList = []
@@ -346,10 +352,10 @@ class MessageFunc():
                 # Display for testing
                 print(corrected_text)
 
-                # Get the true item name by double checking it with the gamepedia page
+                # Get the true item name by double checking it with the gamepedia page  (this doesn't line up anymore, cuz tarkov market urls are the bane of my existance)
                 rep = {" ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
                     "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
-                    "asses": "", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f",  "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
+                    "X/L":"X_L", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f",  "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
                     "^['^a-zA-Z_]*$": "%E2%80%98", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND",
                     "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
                      "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12", "TOR": "Vector 9x19", "SPLIN": "SPLINT", "DSCRX": "D3CRX", "SSO": "SSD",
@@ -357,7 +363,7 @@ class MessageFunc():
                 rep = dict((re.escape(k), v) for k, v in rep.items())
                 pattern = re.compile("|".join(rep.keys()))
                 search_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,")
-                corrected_text = get_full_item_name(search_text)
+                corrected_text = get_full_item_name(search_text, "wiki")
                 true_name = corrected_text
                 print(search_text, " to correct ", corrected_text)
 
@@ -366,14 +372,15 @@ class MessageFunc():
                     mainTryAttempt = mainTryAttempt + 1
                     continue
 
+                corrected_text = get_full_item_name(corrected_text, "market")
 
                 # Regex replacement for building the item name for the URL
                 rep = {" ": "_", "(alu)": ""} # define desired replacements here
-                
+
                 # use these lines to do the replacement
                 rep = dict((re.escape(k), v) for k, v in rep.items())
                 pattern = re.compile("|".join(rep.keys()))
-                corrected_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,")
+                corrected_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_")
 
                 # Display for testing
                 # print(corrected_text)
@@ -384,8 +391,9 @@ class MessageFunc():
                 # if corrected_text.endswith("_i"):
                 #     corrected_text = corrected_text[:-2]
                 # if corrected_text.startswith("_i"):
-                #     corrected_text = corrected_text[:2]            
+                #     corrected_text = corrected_text[:2]
 
+                print("-----TEST-----", corrected_text)
                 # scrape tarkov-market.com/item/Item_name_here
                 URL_org = 'https://tarkov-market.com/item/'+corrected_text
                 URL = URL_org.lower()
@@ -451,11 +459,11 @@ class MessageFunc():
             gp_soup = BeautifulSoup(page2.content, 'html.parser')
 
             # Get all the price values and quest information
-            itemLastLowSoldPrice = tm_soup.find("div", {"class": "price last alt"}).text
+            itemLastLowSoldPrice = tm_soup.find("div", {"class": "c-price last alt"}).text
             item24hrAvgPrice = tm_soup.findAll("div", {"class": "price-row"})[0].findChildren()[0].get_text()
-            block_items = tm_soup.findAll("div", {"class": "block-item"})
+            block_items = tm_soup.findAll("div", {"class": "blk-item"})
             traderName = block_items[len(block_items)-1].find("div", {"class": "bold"}).get_text()
-            itemTraderPrice = block_items[len(block_items)-1].find("div", {"class": "price alt"}).get_text()
+            itemTraderPrice = block_items[len(block_items)-1].find("div", {"class": "c-price alt"}).get_text()
             questsListText = []
             quests = ""
             questchecker = gp_soup.findAll("span", {"id": "Quests"})
@@ -506,10 +514,13 @@ class POINT(Structure):
     _fields_ = [("x", c_long), ("y", c_long)]
 
 
-def get_full_item_name(search_text):
+def get_full_item_name(search_text, site):
     # Make a gamepedia search on the shorthand name
     try:
-        search_url = "https://www.google.com/search?&q=site%3Aescapefromtarkov.gamepedia.com+"+urllib.parse.quote_plus(search_text)
+        if site == "market":
+            search_url = "https://www.google.com/search?&q=site%3Atarkov-market.com+"+urllib.parse.quote_plus(search_text)
+        else:
+            search_url = "https://www.google.com/search?&q=site%3Aescapefromtarkov.gamepedia.com+"+urllib.parse.quote_plus(search_text)
         page = requests.get(search_url)
         if page.status_code != 200:
             raise Exception("Error Code: ", page.status_code)
@@ -524,7 +535,7 @@ def get_full_item_name(search_text):
     h3_list = soup.select('h3', {"class": "LC20lb DKV0Md"})
     print(h3_list)
     if len(h3_list) != 0:
-        h3_text = h3_list[0].get_text().split(" - ")[0] 
+        h3_text = h3_list[0].get_text().split(" - ")[0]
         print(h3_text)
         return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
     else:

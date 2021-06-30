@@ -9,6 +9,12 @@ fix ifak loose item not being name detected correctly
 fix the "overall" tab compare image getting convered up when
 the popup is overlayed.
 
+fix quest info too long one line in popup
+
+Fix specific item words:
+BLACKLIST WORD BODY
+paper thinks interchange paper map 
+
 Extra datapoint ideas:
  - "best_to_sell" either the trader or market
    - market_price minus market_fee vs trader price

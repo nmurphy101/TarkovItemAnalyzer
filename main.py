@@ -13,7 +13,7 @@
 
 
 __author__ = "Nicholas Murphy"
-__version__ = '0.1.0'
+__version__ = '1.0.0-alpha'
 
 from tkinter import Tk
 from multiprocessing import Manager

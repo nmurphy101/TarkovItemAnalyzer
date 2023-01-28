@@ -33,7 +33,6 @@ def main():
         # Start the root app
         root = Tk()
         root.update() # This is the workaround
-        root.geometry("300x90")
 
         # Run the gui
         gui = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")

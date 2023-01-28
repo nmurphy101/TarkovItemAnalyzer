@@ -1,0 +1,153 @@
+{
+ "version": "auto-py-to-exe-configuration_v1",
+ "pyinstallerOptions": [
+  {
+   "optionDest": "noconfirm",
+   "value": true
+  },
+  {
+   "optionDest": "filenames",
+   "value": "C:\\program_projects\\Tarkov_Item_Analyzer\\main.py"
+  },
+  {
+   "optionDest": "onefile",
+   "value": false
+  },
+  {
+   "optionDest": "console",
+   "value": false
+  },
+  {
+   "optionDest": "ascii",
+   "value": false
+  },
+  {
+   "optionDest": "clean_build",
+   "value": true
+  },
+  {
+   "optionDest": "strip",
+   "value": false
+  },
+  {
+   "optionDest": "noupx",
+   "value": false
+  },
+  {
+   "optionDest": "uac_admin",
+   "value": false
+  },
+  {
+   "optionDest": "uac_uiaccess",
+   "value": false
+  },
+  {
+   "optionDest": "win_private_assemblies",
+   "value": false
+  },
+  {
+   "optionDest": "win_no_prefer_redirects",
+   "value": false
+  },
+  {
+   "optionDest": "bootloader_ignore_signals",
+   "value": false
+  },
+  {
+   "optionDest": "pathex",
+   "value": "C:/Windows/System32/downlevel"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/program_projects/Tarkov_Item_Analyzer/pkg;pkg/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/program_projects/Tarkov_Item_Analyzer/tessdata;tessdata/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/program_projects/Tarkov_Item_Analyzer/compare_img.png;."
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/program_projects/Tarkov_Item_Analyzer/LICENSE;."
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "pynput"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "time"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "sys"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "re"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "resource"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "termios"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "pyimod03_importers"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "multiprocessing.Manager"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "multiprocessing.Lock"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "multiprocessing.Process"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "multiprocessing.Queue"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "multiprocessing.cpu_count"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "multiprocessing.Pool"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "tornado"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "itertools"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "pynput._util"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "pynput.keyboard"
+  },
+  {
+   "optionDest": "excludes",
+   "value": "pytest"
+  }
+ ],
+ "nonPyinstallerOptions": {
+  "increaseRecursionLimit": true,
+  "manualArguments": ""
+ }
+}

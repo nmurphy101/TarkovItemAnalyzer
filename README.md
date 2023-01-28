@@ -9,8 +9,6 @@ in 2-6sec the gui will open
 press the "start" button to have the program watch tarkov
 Start playing Tarkov as normal
 
-Note: Current release isn't updated, though current build is so just run the "python main.py" command directly instead.
-
 # How to use
 
 When in an inventory screen (Stash or match) hover your mouse over an item and wait for the black box with the item name to appear
@@ -35,3 +33,4 @@ pyinstaller --noconfirm --onefile --windowed --clean --add-data "C:/DIR_LOCATION
 - In the current release there is a small memory leak when you press "f" checking items for information.
   - For both of these memory leaks I suggest closing the app and opening it again every so often to release the memory.
   - This is caused by the keylogger that watches for button presses (ie the "f" key, it's not necessarily the code here, perhaps the implementation)
+- Some spaghetti code here, enjoy if you look through it. Might clean it up more later.

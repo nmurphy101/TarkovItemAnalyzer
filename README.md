@@ -4,20 +4,25 @@ Tarkov Item Analyzer (TIA) allows you to know the price, and other informatino, 
 # How to run
 
 Follow the install_instructions.txt
+
+Else if a full release exists (and it isn't broken like the first one is):
 Use either the single exe file or the ziped directory or run the "python main.py" command directly
 Using admin privileges start the single exe file or the exe file within the unzipped directory.
 in 2-6sec the gui will open
-press the "start" button to have the program watch tarkov
+press the "start" button while tarkov has already started to have the program watch tarkov
 Start playing Tarkov as normal
 
 # How to use
 
 When in an inventory screen (Stash or match) hover your mouse over an item and wait for the black box with the item name to appear
-Press "f" to get the item information (this takes 2-3sec)
-If nothing happens try again or let me know that item doesn't work
+Press "f" to get the item information (the result takes ~2-3sec to appear in upper right corner)
+If nothing happens or an error message appears try again.
+If it continues to fail let me know that item doesn't work and can't be found.
 
-When picking up a loose item in a match with "f"
+When picking up a loose item in a match with "f" (the default interact/pickup button keybinding)
 it'll give you the item information (this takes 2-3sec)
+
+The main app will also display a history of the most recent 5 items you've analyzed.
 
 # Build to Executible
 auto-py-to-exe

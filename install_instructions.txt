@@ -1,5 +1,6 @@
 
 1. Install tesseract-ocr via windows installer exe for either 32bit or 64bit to C:\Program Files\Tesseract-OCR
+  - Note: Tesseract installs from https://github.com/UB-Mannheim/tesseract/wiki
 2. Replace the eng.traineddata file from this projects tessdata to C:\Program Files\Tesseract-OCR\tessdata
 3. Install the following python pip packages:
 pip3 install psutil

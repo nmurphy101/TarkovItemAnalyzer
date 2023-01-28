@@ -3,6 +3,7 @@ Tarkov Item Analyzer (TIA) allows you to know the price, and other informatino, 
 
 # How to run
 
+Follow the install_instructions.txt
 Use either the single exe file or the ziped directory or run the "python main.py" command directly
 Using admin privileges start the single exe file or the exe file within the unzipped directory.
 in 2-6sec the gui will open

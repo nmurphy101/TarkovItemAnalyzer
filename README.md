@@ -14,6 +14,8 @@ Start playing Tarkov as normal
 
 # How to use
 
+Make sure you're in borderless mode for tarkov, fullscreen will get you tabbed out by this app.
+
 When in an inventory screen (Stash or match) hover your mouse over an item and wait for the black box with the item name to appear
 Press "f" to get the item information (the result takes ~2-3sec to appear in upper right corner)
 If nothing happens or an error message appears try again.

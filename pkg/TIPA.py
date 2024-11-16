@@ -37,7 +37,7 @@ from scipy import misc, cluster
 # pylint: disable=no-name-in-module, method-hidden
 from win32gui import GetWindowText, GetForegroundWindow
 # pylint: enable=no-name-in-module
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = r"D:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 class ProcessManager(threading.Thread):
@@ -201,11 +201,12 @@ class MessageFunc():
             temp_name2 = "temp_" + next(tempfile._get_candidate_names())+".png"
 
             # Determine if in inventory/stash or game(picking up loose item)
-            # Get the "overview" button in the inventory screen as a determinate
+            # Get the "eyewear" inventory text  in the inventory screen as a determinate
             # search_area0 = (35, 15, 195, 55)
-            search_area0 = (617, 375, 711, 395)
+            # search_area0 = (617, 375, 711, 395)
+            search_area0 = (598, 421, 692, 441)
             check_img = self.img.crop(search_area0)
-            check_img.save(temp_name0, dpi=(500, 500))
+            check_img.save(temp_name0, dpi=(5000, 5000))
             # Read in the images to compair
             check_img = cv2.imread(temp_name0)
             try:
@@ -215,9 +216,10 @@ class MessageFunc():
             compare_img = cv2.imread("compare_img.png")
 
             if self.debug_mode >= 2:
-                print("Showing overview button image")
+                print("Showing eyewear inventory text expected image")
                 cv2.imshow("image", compare_img)
                 cv2.waitKey(0)
+                print("Showing eyewear inventory text captured image")
                 cv2.imshow("image", check_img)
                 cv2.waitKey(0)
 
@@ -226,7 +228,7 @@ class MessageFunc():
             inventory = None
             if self.debug_mode >= 1:
                 print("Diff: ", diff_num)
-            if diff_num < 370:
+            if diff_num < 2000:
                 if self.debug_mode:
                     print("inventory")
                 # Search areas for the inventory/stash item
@@ -336,7 +338,10 @@ class MessageFunc():
                         final_img = imagesList[maxPos]
                         image = final_img
 
-                        if self.debug_mode >= 2:
+                    else:
+                        print("In raid")
+
+                    if self.debug_mode >= 2:
                             cv2.imshow("final_image", image)
                             cv2.waitKey(0)
 
@@ -424,6 +429,14 @@ class MessageFunc():
                     
                     if self.debug_mode >= 1:
                         print("WORDS2: ", newWordList)
+
+                    if len(newWordList) == 0:
+                        if self.debug_mode >= 1:
+                            print("Unexpected error:", "Couldn't get words to search")
+                        mainTryAttempt = mainTryAttempt + 1
+                        self.popup_error(lock, "Error, please try again")
+                        self.need_quit = True
+                        break
 
                     corrected_text = " ".join(newWordList)
 
@@ -663,12 +676,14 @@ class POINT(Structure):
 
 
 def get_full_item_name(search_text: str, site: str):
+    if search_text == "":
+        return None
     # Make a gamepedia search on the shorthand name
     try:
         if site == "market":
-            search_url = f'https://www.google.com/search?&q=tarkov+market+"{urllib.parse.quote_plus(search_text)}"'
+            search_url = f'https://www.google.com/search?&q=tarkov+market+{urllib.parse.quote_plus(search_text)}'
         else:
-            search_url = f'https://www.google.com/search?&q=tarkov+wiki+"{urllib.parse.quote_plus(search_text)}"'
+            search_url = f'https://www.google.com/search?&q=tarkov+wiki+{urllib.parse.quote_plus(search_text)}'
         page = requests.get(search_url)
         if page.status_code != 200:
             raise Exception("Error Code: ", page.status_code)

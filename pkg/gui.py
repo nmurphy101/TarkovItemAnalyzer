@@ -280,7 +280,8 @@ class GUI(App):
         else:
             item = None
 
-        if item:
+        if item and "Error" not in item[0]:
+            print("item: ", item)
             self.add_to_history(item)
 
             msg = item[0]

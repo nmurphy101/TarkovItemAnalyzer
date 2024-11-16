@@ -37,6 +37,8 @@ def main():
         # Run the gui
         gui = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
 
+        print("running")
+
         # End of the main app.
         root.mainloop()
         if gui.p_manager.is_alive():

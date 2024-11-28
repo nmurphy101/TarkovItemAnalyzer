@@ -72,63 +72,61 @@ class ProcessManager(threading.Thread):
         for _ in range(self.num_workers):
             Worker(self.process_queue, self.lock).start()
 
+        self.capture_screenshots()
+
+    def capture_screenshots(self):
+        # Register the keyboard event once
+        keyboard.on_press_key(key="f", callback=self.on_release)
+
         # Take the screenshot for the item name (in inventory/stash)
-        # The imageGrab needs to happen here or sooner else it won't happen quick enough
         while True:
-            self.img = ImageGrab.grab()
-            if not self.listen:
+            try:
+                self.img = ImageGrab.grab()
+                if not self.listen:
+                    break
+                time.sleep(0.1)
+                self.listen_lock = False
+            except Exception as e:
+                logging.error(f"Error capturing screenshot: {e}")
                 break
-            keyboard.on_press_key(key="f", callback=self.on_release)
-            time.sleep(.1)
-            self.listen_lock = False
 
-        # # Listener Loop
-        # with pkeyboard.Listener(on_press=lambda var:self.on_press(var)) as listener:
-        #     listener.join()
-
-    def Close(self):
-        print("\nStopping")
+    def close(self):
+        logging.info("Stopping")
         # Sentinel objects to allow clean shutdown: 1 per worker.
         for _ in range(self.num_workers):
             self.process_queue.put(None)
         self.listen = False
         threading.Thread.join(self, 3)
 
-    def on_test(self):
-        pass
-
     def on_press(self, e):
         keyboard.on_release_key(key="f", callback=self.on_release)
 
     def on_release(self, e):
-        if self.listen_lock == False:
-            self.listen_lock = True
-            print("Got Listen Lock / released f")
-            # Check if tarkov is the focused window before doing anything else
-            active_process = GetWindowText(GetForegroundWindow())
-            if active_process != "" and active_process == "EscapeFromTarkov":
-                # Get the mouse position
-                pos = queryMouse_position()
+        if self.listen_lock:
+            return
 
-                # Generate a unique uuid for this instance
-                # id = uuid.uuid4()
+        self.listen_lock = True
+        logging.info("Got Listen Lock / released f")
 
-                # Figure out what this instance window popup should be located
-                display_info_init = {
-                    "x": 0,
-                    "y": 0,
-                    "w": 210, # width for the Tk root
-                    "h": 120, # height for the Tk root
-                    # "id": id,
-                }
+        # Check if Tarkov is the focused window before doing anything else
+        active_window = GetWindowText(GetForegroundWindow())
+        if active_window != "EscapeFromTarkov":
+            logging.warning("Target process is not active")
+            return
 
-                # Add this next instance to the process pool and run it with a pool worker
-                self.process_queue.put(MessageFunc(self.img, pos, display_info_init, self.gui_queue))
+        # Get the mouse position
+        mouse_position = queryMouse_position()
 
-            else:
-                logging.warning("target process is not active")
-        else:
-            pass
+        # Define display information for the popup window
+        display_info = {
+            "x": 0,
+            "y": 0,
+            "w": 210,  # width for the Tk root
+            "h": 120,  # height for the Tk root
+        }
+
+        # Add this instance to the process queue and run it with a pool worker
+        self.process_queue.put(MessageFunc(self.img, mouse_position, display_info, self.gui_queue))
 
 
 class Worker(Process):
@@ -145,7 +143,10 @@ class Worker(Process):
 
     def run(self):
         # Worker Loop
-        for process in iter(self.queue.get, None):
+        while True:
+            process = self.queue.get()
+            if process is None:
+                break
             process.run(self.lock)
 
 
@@ -164,580 +165,475 @@ class MessageFunc():
         self.mouse_pos = mouse_pos
         self.display_info_init = display_info_init
         self.gui_queue = gui_queue
-        self.debug_mode = 1
-
-    def mse(self, imageA, imageB):
+        self.debug_mode = 0
+    
+    def mse(self, imageA: np.ndarray, imageB: np.ndarray) -> float:
         '''
         The 'Mean Squared Error' between the two images is the
         sum of the squared difference between the two images;
         NOTE: the two images must have the same dimension
         '''
-        err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
-        err /= float(imageA.shape[0] * imageA.shape[1])
-
-        # return the MSE, the lower the error, the more "similar"
-        # the two images are
+        if imageA.shape != imageB.shape:
+            raise ValueError("Input images must have the same dimensions")
+        
+        # Calculate the mean squared error using NumPy's built-in functions
+        err = np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
+        
+        # Return the MSE, the lower the error, the more "similar" the two images are
         return err
 
     def popup_error(self, lock, err_msg):
         # Make the popup string message
-        popupStr = (f"{err_msg}")
+        popup_str = f"{err_msg}"
 
-        # Get the multiprocess lock and update the gui window
-        lock.acquire()
-        self.gui_queue.put([popupStr, self.display_info_init])
-        # app.pop_always_on_top(popupStr, display_info)
-        lock.release()
+        # Get the multiprocess lock and update the GUI window
+        with lock:
+            self.gui_queue.put([popup_str, self.display_info_init])
 
     def run(self, lock):
         while not self.need_quit:
-            # Enhance the image
-            # enhancer = ImageEnhance.Sharpness(img)
-            # img = enhancer.enhance(.75)
-
             # Temp files for the images to be worked with
-            temp_name0 = "temp_" + next(tempfile._get_candidate_names())+".png"
-            temp_name1 = "temp_" + next(tempfile._get_candidate_names())+".png"
-            temp_name2 = "temp_" + next(tempfile._get_candidate_names())+".png"
+            temp_files = self.create_temp_files()
 
             # Determine if in inventory/stash or game(picking up loose item)
             # Get the "eyewear" inventory text  in the inventory screen as a determinate
-            # search_area0 = (35, 15, 195, 55)
-            # search_area0 = (617, 375, 711, 395)
-            search_area0 = (598, 421, 692, 441)
-            check_img = self.img.crop(search_area0)
-            check_img.save(temp_name0, dpi=(5000, 5000))
-            # Read in the images to compair
-            check_img = cv2.imread(temp_name0)
-            try:
-                os.remove(temp_name0)
-            except Exception as e:
-                pass
+            check_img = self.img.crop((598, 421, 692, 441))
+            check_img.save(temp_files[0], dpi=(5000, 5000))
+            check_img = cv2.imread(temp_files[0])
+            os.remove(temp_files[0])
             compare_img = cv2.imread("compare_img.png")
 
             if self.debug_mode >= 2:
-                print("Showing eyewear inventory text expected image")
-                cv2.imshow("image", compare_img)
-                cv2.waitKey(0)
-                print("Showing eyewear inventory text captured image")
-                cv2.imshow("image", check_img)
-                cv2.waitKey(0)
+                self.show_images(compare_img, check_img)
 
-            # Select to check for the item name
             diff_num = self.mse(check_img, compare_img)
-            inventory = None
-            if self.debug_mode >= 1:
-                print("Diff: ", diff_num)
-            if diff_num < 2000:
-                if self.debug_mode:
-                    print("inventory")
-                # Search areas for the inventory/stash item
-                search_area1 = (self.mouse_pos["x"]-16, self.mouse_pos["y"]-42, self.mouse_pos["x"]+420, self.mouse_pos["y"]-10)
-                search_area2 = (self.mouse_pos["x"]-400, self.mouse_pos["y"]-65, self.mouse_pos["x"]+420, self.mouse_pos["y"]-10)
-                inventory = True
-            else:
-                if self.debug_mode >= 1:
-                    print("Loose")
-                width, height = self.img.size
-                # Search areas for loose items in a match
-                search_area1 = ((width/2)-39, (height/2)+42, (width/2)+40, (height/2)+57)
-                search_area2 = ((width/2)-32, (height/2)+42, (width/2)+32, (height/2)+57)
-                inventory = False
-
+            is_inventory = self.determine_inventory(diff_num)
+            
+            search_areas = self.get_search_areas(is_inventory)
             # Save the cropped screen image
-            self.img.crop(search_area1).save(temp_name1, dpi=(500, 500))
+            self.img.crop(search_areas[0]).save(temp_files[1], dpi=(500, 500))
             # Save the cropped screen image
-            self.img.crop(search_area2).save(temp_name2, dpi=(500, 500))
+            self.img.crop(search_areas[1]).save(temp_files[2], dpi=(500, 500))
 
             page = None
-            mainTryAttempt = 1
-            mainTryLimit = 2
+            main_try_attempt = 1
+            main_try_limit = 2
             found = False
+
             try:
                 while not found:
                     if self.debug_mode >= 1:
-                        print("Found?? ", found, mainTryAttempt, ">", mainTryLimit)
+                        logging.info("Found?? ", found, main_try_attempt, ">", main_try_limit)
 
-                    if mainTryAttempt > mainTryLimit:
+                    if main_try_attempt > main_try_limit:
                         self.need_quit = True
                         break
 
                     # Run tesseract on the image
-                    if mainTryAttempt == 1:
-                        image1 = cv2.imread(temp_name1)
-                        image2 = cv2.imread(temp_name2)
-                        try:
-                            os.remove(temp_name1)
-                        except Exception as exception:
-                            pass
-                        try:
-                            os.remove(temp_name2)
-                        except Exception as exception:
-                            pass
-                        image = cv2.resize(image1, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+                    image = self.process_image(main_try_attempt, lock, temp_files, is_inventory)
 
-                    if mainTryAttempt == 2:
-                        image = cv2.resize(image2, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+                    if image is None:
+                        if self.debug_mode >= 1:
+                            logging.info("No captures found")
+                            logging.info(" -  - " * 8)
+                        self.popup_error(lock, "Error, please try again")
+                        main_try_attempt = main_try_attempt + 1
+                        self.need_quit = True
+                        break
 
-                    if inventory:
-                        print("In inventory contour corrector")
-                        gray = cv2.cvtColor(image ,cv2.COLOR_BGR2GRAY)
-                        edged = cv2.Canny(image, 10, 250)
-
-                        if self.debug_mode >= 2:
-                            cv2.imshow("gray", gray)
-                            cv2.imshow("edged", edged)
-                            cv2.waitKey(0)
-
-                        (cnts, _) = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-                        idx = 0
-                        imagesList = []
-                        areaList = []
-                        i = 0
-                        for c in cnts:
-                            ## For testing draw the contours
-                            peri = cv2.arcLength(c, True)
-                            approx = cv2.approxPolyDP(c, 0.03 * peri, True)
-                            cv2.drawContours(image, [approx], -1, (0, 255, 0), 2)
-
-                            # Crop the image to the contour
-                            x, y, w, h = cv2.boundingRect(c)
-                            # if w>130 and h<175 and h>95:
-                            if w > 66 and w < 1212 and h > 66 and h < 168:
-                                idx += 1
-                                new_img = image[y+13:y+h-11,x+11:x+w-11]
-                                imagesList.append(new_img)
-                                height, width, z = np.array(new_img).shape
-                                area = height * width
-                                areaList.append(area)
-                                if self.debug_mode >= 3:
-                                    cv2.imshow("slice_img"+str(i), new_img)
-                                i += 1
-
-                        if self.debug_mode >= 2:
-                            print("Contours? ", len(areaList) == 0)
-                            cv2.imshow("image", image)
-                            cv2.waitKey(0)
-
-                        # Check that it's a good image grab that has contour areas
-                        if len(areaList) == 0:
-                            if self.debug_mode >= 1:
-                                print("No captures found")
-                                print(" -  - " * 8)
-                            mainTryAttempt = mainTryAttempt + 1
-                            self.popup_error(lock, "Error, please try again")
-                            self.need_quit = True
-                            break
-
-                        # inbuilt function to find the position of second maximum sized cropped image
-                        secondMaxPos = areaList.index(secondMax(areaList))
-                        # inbuilt function to find the position of maximum
-                        maxPos = areaList.index(max(areaList))
-                        # Get the chosen image
-                        final_img = imagesList[maxPos]
-                        image = final_img
-
-                    else:
-                        print("In raid")
-
-                    if self.debug_mode >= 2:
-                            cv2.imshow("final_image", image)
-                            cv2.waitKey(0)
-
-                    # THRESH_TRUNC works for the container items
-                    retval, threshold = cv2.threshold(image, 80, 255, cv2.THRESH_BINARY_INV)
+                    text, threshold = self.extract_text(image)
 
                     if self.debug_mode >= 3:
                         img = Image.fromarray(threshold, "RGB")
                         img.show()
-                        cv2.waitKey(0)  
+                        cv2.waitKey(0)
 
-                    # Run the parser
-                    # text = pytesseract.image_to_string(threshold, lang="eng", config="--PSM 7 --oem 0")
-                    text = pytesseract.image_to_string(threshold, lang="eng", config="--psm 6")
+                    elif self.debug_mode >= 1:
+                        logging.debug("{{{ ", text, "}}}")
+                        
+                    wordlist = self.clean_text(text)
 
-                    # Display for testing
-                    if self.debug_mode >= 1:
-                        print("{{{ ", text, "}}}")
-
-                    # Check that words were discovered
-                    lineList = text.strip().split("\n")
-
-                    if self.debug_mode >= 1:
-                        print(lineList, lineList[len(lineList)-1])
-
-                    wordlist = str.split(text.strip())
-                    if len(wordlist) == 0:
-                        if self.debug_mode >= 1:
-                            print("Unexpected error:", "No Words Found")
-                        mainTryAttempt = mainTryAttempt + 1
+                    if not self.validate_wordlist(wordlist):
+                        main_try_attempt += 1
                         self.popup_error(lock, "Error, please try again")
                         self.need_quit = True
                         break
 
-                    elif len(wordlist) == 1:
-                        if len(wordlist[0]) <= 2:
-                            if self.debug_mode >= 1:
-                                print("Unexpected error:", "No Words Found")
-                            mainTryAttempt = mainTryAttempt + 1
-                            self.popup_error(lock, "Error, please try again")
-                            self.need_quit = True
-                            break
+                    corrected_text = self.correct_text(wordlist)
+                    true_name = self.get_full_item_name(corrected_text, "wiki")
 
-                        if wordlist[0] == "Body":
-                            if self.debug_mode >= 1:
-                                print("inspected a body")
-                            self.popup_error(lock, "Error, please try again")
-                            self.need_quit = True
-                            break
-
-                    if self.debug_mode >= 1:
-                        print("WORDS 1: ", wordlist)
-
-                    newWordList = []
-                    for word in wordlist:
-                        if word == ".":
-                            if self.debug_mode >= 1:
-                                print("'"+word+"'", "removed via 0")
-                                
-                        elif len(word) == 1:
-                            if self.debug_mode >= 1:
-                                print("'"+word+"'", "removed via 3")
-
-                        elif not re.match(r"^[-\(\)/.,\"\'a-zA-Z0-9_]*$", word):
-                            if (
-                                not re.match(r"^[-\(\)/.,\"\'a-zA-Z0-9_]*$", word.strip("[-'’”\"`.@_!#$%^&*<>?/\}{~:]"))
-                                and not re.match(r"[A-Za-z0-9]+(-|—|’|”)[A-Za-z0-9]+", word.strip("[-'’”\".`@_!#$%^&*<>?/\}{~:]"))
-                            ):
-                                if self.debug_mode >= 1:
-                                    print("'"+word+"'", "removed via 1")
-
-                            else:
-                                if self.debug_mode >= 1:
-                                    print("'"+word.strip("[-'”\".`@_!#$%^&*<>?/\}{~:]")+"'", "kept")
-                                newWordList.append(word.strip("[-'”\".`@_!#$%^&*<>?/\}{~:]"))
-
-                        elif re.match(r'^[_\W]+$', word):
-                            if self.debug_mode >= 1:
-                                print("'"+word+"'", "removed via 2")
-
-                        else:
-                            if self.debug_mode >= 1:
-                                print("'"+word+"'", "kept")
-                            newWordList.append(word)
-                    
-                    if self.debug_mode >= 1:
-                        print("WORDS2: ", newWordList)
-
-                    if len(newWordList) == 0:
-                        if self.debug_mode >= 1:
-                            print("Unexpected error:", "Couldn't get words to search")
-                        mainTryAttempt = mainTryAttempt + 1
+                    if not true_name:
+                        main_try_attempt += 1
                         self.popup_error(lock, "Error, please try again")
                         self.need_quit = True
                         break
 
-                    corrected_text = " ".join(newWordList)
-
-                    # Display for testing
                     if self.debug_mode >= 1:
-                        print(corrected_text)
+                        logging.info(corrected_text, " to correct ", true_name)
 
-                    # Get the true item name by double checking it with the gamepedia page  (this doesn't line up anymore, cuz tarkov market urls are the bane of my existance)
-                    rep = {" ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
-                        "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
-                        "X/L":"X_L", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f",  "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
-                        "^['^a-zA-Z_]*$": "%E2%80%98", "RUG": "RDG", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND",
-                        "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
-                        "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12", "TOR": "Vector 9x19", "SPLIN": "SPLINT", "DSCRX": "D3CRX", "SSO": "SSD",
-                        "((": "(", "))": ")"}
-                    rep = dict((re.escape(k), v) for k, v in rep.items())
-                    pattern = re.compile("|".join(rep.keys()))
-                    search_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,")
-                    corrected_text = get_full_item_name(search_text, "wiki")
-                    true_name = corrected_text
-                    
-                    if self.debug_mode >= 1:
-                        print(search_text, " to correct ", corrected_text)
+                    URL = self.get_item_url(corrected_text, "market")
+                    page, page2 = self.fetch_pages(URL, true_name)
 
-                    if corrected_text == None:
-                        if self.debug_mode >= 1:
-                            print("Unexpected error:", "Couldn't convert short to full")
-                        mainTryAttempt = mainTryAttempt + 1
+                    if not page or not page2:
+                        main_try_attempt += 1
                         self.popup_error(lock, "Error, please try again")
                         self.need_quit = True
                         break
 
-                    # corrected_text = get_full_item_name(corrected_text, "market")
-
-                    # Regex replacement for building the item name for the URL
-                    rep = {" ": "_", "(alu)": ""} # define desired replacements here
-
-                    # use these lines to do the replacement
-                    rep = dict((re.escape(k), v) for k, v in rep.items())
-                    pattern = re.compile("|".join(rep.keys()))
-                    corrected_text = pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
-
-                    # Display for testing
                     if self.debug_mode >= 1:
-                        print(corrected_text)
+                        logging.info("Getting Item Information...")
 
-                    # Further clean up to get rid of rogue "_i" or "i_" that made it past the filters
-                    # if corrected_text.endswith("_i"):
-                    #     corrected_text = corrected_text[:-2]
-                    # if corrected_text.startswith("_i"):
-                    #     corrected_text = corrected_text[:2]
+                    display_info = self.parse_pages(page, page2, true_name)
 
                     if self.debug_mode >= 1:
-                        print("-----TEST-----", corrected_text)
+                        logging.debug("PARSED INFO: ", display_info["itemLastLowSoldPrice"], display_info["item24hrAvgPrice"], display_info["traderName"], display_info["itemTraderPrice"], "\n", display_info["quests"])
+                        logging.debug("="*80)
 
-                    # scrape google for the tarkov-market.com/item/Item_name_here url
-                    URL = get_item_url(corrected_text, "market")
-                    if not "https://tarkov-market.com/item/" in URL:
-                        self.popup_error(lock, "Error, please try again")
-                        self.need_quit = True
-                        break
-
-                    tryCounter = 1
-                    tryLimit = 4
-                    page = None
-                    page2 = None
-                    while tryCounter <= tryLimit:
-                        try:
-                            if self.debug_mode >= 1:
-                                print("Try: ", tryCounter, " ", URL)
-                            page = requests.get(URL)
-
-                            if page.status_code != 200:
-                                raise Exception("Error Code: ", page.status_code)
-
-                            else:
-                                break
-
-                        except:
-                            if tryCounter == 1:
-                                URL = URL_org
-
-                            elif tryCounter == 2:
-                                URL = "https://tarkov-market.com/item/"+corrected_text.lower().capitalize()
-
-                            elif tryCounter == 3:
-                                words_list = corrected_text.lower().split("_")
-                                corrected_text = f"{words_list[0].capitalize()}_{'_'.join(map(str.upper, words_list[1:]))}"
-                                URL = "https://tarkov-market.com/item/"+corrected_text
-
-                            tryCounter = tryCounter + 1
-                            self.popup_error(lock, "Error, please try again")
-                            self.need_quit = True
-                            break
-
-                    if tryCounter > tryLimit:
-                        if self.debug_mode >= 1:
-                            print("Unexpected error:", "No Page Found")
-
-                        mainTryAttempt = mainTryAttempt + 1
-                        self.popup_error(lock, "Error, please try again")
-                        self.need_quit = True
-                        break
-
-                    if page is None or page.status_code != 200:
-                        if self.debug_mode >= 1:
-                            print("Unable to find tarkov-market page")
-                            print("="*80)
-
-                        self.popup_error(lock, "Error, please try again")
-                        self.need_quit = True
-                        break
-
-                    # Scrape the gamepedia item webpage for more details
-                    try:
-                        URL2 = "https://escapefromtarkov.gamepedia.com/"+true_name
-                        page2 = requests.get(URL2)
-
-                        if page2.status_code != 200:
-                            raise Exception("Error Code: ", page2.status_code)
-
-                        else:
-                            print("Request Gamepedia 200")
-
-                    except Exception as e:
-                        if self.debug_mode >= 1:
-                            print("Unexpected error:", "No Page Found for Gamepedia")
-
-                    if page2 is None or page2.status_code != 200:
-                        if self.debug_mode >= 1:
-                            print("Unable to find gamepedia page")
-                            print("="*80)
-
-                        self.popup_error(lock, "Error, please try again")
-                        self.need_quit = True
-                        break
-
-                    # Break the loop as we've found the item information
-                    if self.debug_mode >= 1:
-                        print("Found! Breaking")
+                    # Popup display information/position dictionary
+                    display_info.update(self.display_info_init)
+                    self.update_gui(lock, display_info)
 
                     found = True
-
-                if page is None or page.status_code != 200:
-                    mainTryAttempt = mainTryAttempt + 1
-                    self.popup_error(lock, "Error, please try again")
-                    continue
-                
-                if self.debug_mode >= 1:
-                    print(page, page.status_code, mainTryAttempt)
-                    print("Getting Item Information...")
-
-                # Parse scraped tarkov-market page
-                tm_soup = BeautifulSoup(page.content, "html.parser")
-                # Parse scraped gamepedia page
-                gp_soup = BeautifulSoup(page2.content, "html.parser")
-
-                # Get all the price values and quest information
-                # print("Full html: ", tm_soup)
-                itemLastLowSoldPrice = tm_soup.findAll("div", {"class": "big bold alt"})[0].get_text()
-                try:
-                    item24hrAvgPrice = tm_soup.findAll("span", {"class": "bold alt"})[0].get_text()
-
-                except IndexError:
-                    item24hrAvgPrice = "NA"
-
-                try:
-                    traderName = tm_soup.findAll("div", {"class": "bold plus"})[6].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
-                    itemTraderPrice = tm_soup.findAll("div", {"class": "bold plus"})[6].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
-                
-                except IndexError:
-                    try:
-                        traderName = tm_soup.findAll("div", {"class": "bold plus"})[5].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
-                        itemTraderPrice = tm_soup.findAll("div", {"class": "bold plus"})[5].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
-                    
-                    except IndexError:
-                        traderName = tm_soup.findAll("div", {"class": "bold plus"})[2].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
-                        itemTraderPrice = tm_soup.findAll("div", {"class": "bold plus"})[2].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
-
-                questsListText = []
-                quests = ""
-                questchecker = gp_soup.findAll("span", {"id": "Quests"})
-                if len(questchecker) == 1:
-                    lists = gp_soup.find("div", {"class": "mw-parser-output"}).findAll("ul")
-                    for child in lists:
-                        if child.find("font", {"color": "red"}):
-                            for item in child.findChildren():
-                                if item.getText()[0].isdigit():
-                                    questsListText.append(item.getText().strip())
-
-                    quests = "\n".join(questsListText)
-
-                else:
-                    quests = "Not Quest Item"
-
-                if self.debug_mode >= 1:
-                    print("PARSED INFO: ", itemLastLowSoldPrice, item24hrAvgPrice, traderName, itemTraderPrice, "\n", quests)
-                    # Print to seperate diferent runs
-                    print("="*80)
-
-                # Popup display information/position dictionary
-                display_info = {
-                    "itemName": true_name,
-                    "itemLastLowSoldPrice": itemLastLowSoldPrice,
-                    "item24hrAvgPrice": item24hrAvgPrice,
-                    "traderName": traderName,
-                    "itemTraderPrice": itemTraderPrice,
-                    "quests": quests,
-                    }
-                display_info.update(self.display_info_init)
-
-                # Make the popup string message
-                popupStr = ("{}\n\nLast lowest price: {}\n           24hr Avg: {}\n {}: {}\n\n{}".format(
-                    display_info["itemName"], display_info["itemLastLowSoldPrice"],
-                    display_info["item24hrAvgPrice"], display_info["traderName"].strip(),
-                    display_info["itemTraderPrice"].strip(), display_info["quests"]
-                ))
-
-                # Get the multiprocess lock and update the gui window
-                lock.acquire()
-                self.gui_queue.put([popupStr, display_info])
-                # app.pop_always_on_top(popupStr, display_info)
-                lock.release()
+                    if not found:
+                        self.popup_error(lock, "Error, please try again")
 
                 # Stop the runloop for this process
                 self.need_quit = True
 
             except Exception as error:
                 if self.debug_mode >= 1:
-                    print("An Unknown Error Occured: ", error)
+                    logging.info("An Unknown Error Occured: ", error)
 
                 self.popup_error(lock, "Error, please try again")
+
+    def create_temp_files(self):
+        return (
+            "temp_" + next(tempfile._get_candidate_names()) + ".png",
+            "temp_" + next(tempfile._get_candidate_names()) + ".png",
+            "temp_" + next(tempfile._get_candidate_names()) + ".png"
+        )
+    
+    def show_images(self, compare_img, check_img):
+        logging.info("Showing eyewear inventory text expected image")
+        cv2.imshow("image", compare_img)
+        cv2.waitKey(0)
+        logging.info("Showing eyewear inventory text captured image")
+        cv2.imshow("image", check_img)
+        cv2.waitKey(0)
+
+    def determine_inventory(self, diff_num):
+        if self.debug_mode >= 1:
+            logging.debug("Diff: ", diff_num)
+        if diff_num < 2000:
+            if self.debug_mode:
+                logging.info("Inventory screenshot")
+            return True
+        else:
+            if self.debug_mode >= 1:
+                logging.info("In raid screenshot")
+            return False
+        
+    def get_search_areas(self, inventory):
+        if inventory:
+            return (
+                (self.mouse_pos["x"] - 16, self.mouse_pos["y"] - 42, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
+                (self.mouse_pos["x"] - 400, self.mouse_pos["y"] - 65, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10)
+            )
+        else:
+            width, height = self.img.size
+            return (
+                ((width / 2) - 39, (height / 2) + 42, (width / 2) + 40, (height / 2) + 57),
+                ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
+            )
+    
+    def extract_text(self, image):
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        retval, threshold = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+        return pytesseract.image_to_string(threshold, lang="eng", config="--psm 6"), threshold
+
+    def clean_text(self, text):
+        wordlist = text.strip().split()
+        
+        if self.debug_mode >= 1:
+            logging.info(wordlist, wordlist[len(wordlist)-1])
+
+        new_wordlist = []
+        for word in wordlist:
+            if len(word) > 1 and re.match(r"^[-\(\)/.,\"\'a-zA-Z0-9_]*$", word):
+                new_wordlist.append(word.strip(r"[-'”\".`@_!#$%^&*<>?/\}{~:]"))
+        return new_wordlist
+
+    def process_image(self, attempt, lock, temp_files, is_inventory):
+        if attempt == 1:
+            image1 = cv2.imread(temp_files[1])
+            image2 = cv2.imread(temp_files[2])
+            os.remove(temp_files[1])
+            os.remove(temp_files[2])
+            image = cv2.resize(image1, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+
+        if attempt == 2:
+            image = cv2.resize(image2, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+
+        if is_inventory:
+            logging.debug("In inventory contour corrector")
+            gray = cv2.cvtColor(image ,cv2.COLOR_BGR2GRAY)
+            edged = cv2.Canny(image, 10, 250)
+
+            if self.debug_mode >= 2:
+                cv2.imshow("gray", gray)
+                cv2.imshow("edged", edged)
+                cv2.waitKey(0)
+
+            (cnts, _) = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            idx = 0
+            imagesList = []
+            areaList = []
+            i = 0
+            for c in cnts:
+                ## For testing draw the contours
+                peri = cv2.arcLength(c, True)
+                approx = cv2.approxPolyDP(c, 0.03 * peri, True)
+                cv2.drawContours(image, [approx], -1, (0, 255, 0), 2)
+
+                # Crop the image to the contour
+                x, y, w, h = cv2.boundingRect(c)
+                # if w>130 and h<175 and h>95:
+                if w > 66 and w < 1212 and h > 66 and h < 168:
+                    idx += 1
+                    new_img = image[y+13:y+h-11,x+11:x+w-11]
+                    imagesList.append(new_img)
+                    height, width, z = np.array(new_img).shape
+                    area = height * width
+                    areaList.append(area)
+                    if self.debug_mode >= 3:
+                        cv2.imshow(f"slice_img{str(i)}", new_img)
+                    i += 1
+
+            if self.debug_mode >= 2:
+                logging.debug("Contours? ", len(areaList) == 0)
+                cv2.imshow("image", image)
+                cv2.waitKey(0)
+
+            # Check that it's a good image grab that has contour areas
+            if len(areaList) == 0:
+                return None
+
+            # inbuilt function to find the position of second maximum sized cropped image
+            # secondMaxPos = areaList.index(secondMax(areaList))
+            # inbuilt function to find the position of maximum
+            maxPos = areaList.index(max(areaList))
+            # Get the chosen image
+            final_img = imagesList[maxPos]
+            image = final_img
+
+        else:
+            logging.debug("In raid, no contour corrector")
+
+        if self.debug_mode >= 2:
+            cv2.imshow("final_image", image)
+            cv2.waitKey(0)
+
+        return image
+    
+    def validate_wordlist(self, wordlist):
+        if len(wordlist) == 0 or (len(wordlist) == 1 and len(wordlist[0]) <= 2):
+            return False
+        if wordlist[0] == "Body":
+            return False
+        return True
+    
+    def correct_text(self, wordlist):
+        corrected_text = " ".join(wordlist)
+
+        if self.debug_mode >= 1:
+            logging.debug(corrected_text)
+
+        rep = {
+            " ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
+            "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
+            "X/L": "X_L", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f", "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
+            "^['^a-zA-Z_]*$": "%E2%80%98", "RUG": "RDG", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND",
+            "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
+            "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12", "TOR": "Vector 9x19", "SPLIN": "SPLINT", "DSCRX": "D3CRX", "SSO": "SSD",
+            "((": "(", "))": ")"
+        }
+        rep = dict((re.escape(k), v) for k, v in rep.items())
+        pattern = re.compile("|".join(rep.keys()))
+        return pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
+
+
+    def get_full_item_name(self, search_text: str, site: str) -> str:
+        if not search_text:
+            return None
+
+        try:
+            if site not in ["market", "wiki"]:
+                raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
+
+            search_url = f"https://www.google.com/search?q=tarkov+{site}+" + urllib.parse.quote_plus(search_text)
+            page = requests.get(search_url)
+            page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
+
+            soup = BeautifulSoup(page.content, 'html.parser')
+            h3_list = soup.select('h3')
+
+            if h3_list:
+                h3_text = h3_list[0].get_text().split(" - ")[0]
+                return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
+            else:
+                return None
+
+        except Exception as e:
+            logging.error(f"Error: Couldn't get fullname from {site} search: {e}")
+            return None
+
+
+    def get_item_url(self, search_text: str, site: str):
+        try:
+            if site not in ["market", "wiki"]:
+                raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
+
+            search_url = f"https://www.google.com/search?q=tarkov+{site}+" + urllib.parse.quote_plus(search_text)
+            page = requests.get(search_url)
+            page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
+
+            soup = BeautifulSoup(page.content, 'html.parser')
+            search_results = soup.find("div", {"class": "egMi0 kCrYT"})
+            if not search_results:
+                raise Exception("No search results found.")
+
+            a_list = search_results.find_all("a", href=True)
+            if not a_list:
+                raise Exception("No links found in search results.")
+
+            for a in a_list:
+                if site in a["href"]:
+                    return f"https://google.com{a['href']}"
+
+            return f"https://google.com{a_list[0]['href']}" if a_list else None
+
+        except Exception as e:
+            logging.error(f"Error: Couldn't get item url from {site} search: {e}")
+            return None
+        
+    def fetch_pages(self, URL, true_name):
+        tryCounter = 1
+        tryLimit = 3
+        page1 = None
+        page2 = None
+        while tryCounter <= tryLimit:
+            try:
+                if self.debug_mode >= 1:
+                    logging.debug("Tarkov market request Try: ", tryCounter, " ", URL)
+
+                page1 = requests.get(URL)
+
+                if page1.status_code != 200:
+                    raise Exception("Error Code: ", page1.status_code)
+
+                else:
+                    break
+
+            except Exception as e:
+                if tryCounter == 1:
+                    URL = f"https://tarkov-market.com/item/{corrected_text}".lower().capitalize()
+
+                elif tryCounter == 2:
+                    words_list = corrected_text.lower().split("_")
+                    corrected_text = f"{words_list[0].capitalize()}_{'_'.join(map(str.upper, words_list[1:]))}"
+                    URL = f"https://tarkov-market.com/item/{corrected_text}"
+
+                tryCounter = tryCounter + 1
+                
+        if tryCounter > tryLimit:
+            if self.debug_mode >= 1:
+                logging.warning("Try limit reached on tarkov-market page")
+            return None, None
+
+        if page1 is None or page1.status_code != 200:
+            if self.debug_mode >= 1:
+                logging.info("Unable to find tarkov-market page")
+            return None, None
+
+        # Scrape the gamepedia item webpage for more item details
+        try:
+            URL2 = f"https://escapefromtarkov.gamepedia.com/{true_name}"
+            page2 = requests.get(URL2)
+
+            if page2.status_code != 200:
+                raise Exception("Error Code on gamepedia request: ", page2.status_code)
+
+        except Exception as e:
+            if self.debug_mode >= 1:
+                logging.error("Unexpected error: ", e, exc_info=True)
+
+        if page2 is None or page2.status_code != 200:
+            if self.debug_mode >= 1:
+                logging.info("Unable to find gamepedia page")
+            return None, None
+
+        return page1, page2
+
+    def parse_pages(self, page1, page2, true_name):
+        tm_soup = BeautifulSoup(page1.content, "html.parser")
+        gp_soup = BeautifulSoup(page2.content, "html.parser")
+
+        item_last_low_sold_price = tm_soup.findAll("div", {"class": "big bold alt"})[0].get_text()
+        try:
+            item_24hr_avg_price = tm_soup.findAll("span", {"class": "bold alt"})[0].get_text()
+        except IndexError:
+            item_24hr_avg_price = "NA"
+
+        try:
+            trader_name = tm_soup.findAll("div", {"class": "bold plus"})[6].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
+            item_trader_price = tm_soup.findAll("div", {"class": "bold plus"})[6].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+        except IndexError:
+            try:
+                trader_name = tm_soup.findAll("div", {"class": "bold plus"})[5].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
+                item_trader_price = tm_soup.findAll("div", {"class": "bold plus"})[5].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+            except IndexError:
+                trader_name = tm_soup.findAll("div", {"class": "bold plus"})[2].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
+                item_trader_price = tm_soup.findAll("div", {"class": "bold plus"})[2].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+
+        quests_list_text = []
+        quests = ""
+        questchecker = gp_soup.findAll("span", {"id": "Quests"})
+        if len(questchecker) == 1:
+            lists = gp_soup.find("div", {"class": "mw-parser-output"}).findAll("ul")
+            for child in lists:
+                if child.find("font", {"color": "red"}):
+                    for item in child.findChildren():
+                        if item.getText()[0].isdigit():
+                            quests_list_text.append(item.getText().strip())
+            quests = "\n".join(quests_list_text)
+        else:
+            quests = "Not Quest Item"
+
+        return {
+            "itemName": true_name,
+            "itemLastLowSoldPrice": item_last_low_sold_price,
+            "item24hrAvgPrice": item_24hr_avg_price,
+            "traderName": trader_name,
+            "itemTraderPrice": item_trader_price,
+            "quests": quests,
+        }
+
+    def update_gui(self, lock, display_info):
+        popup_str = ("{}\n\nLast lowest price: {}\n           24hr Avg: {}\n {}: {}\n\n{}".format(
+            display_info["itemName"], display_info["itemLastLowSoldPrice"],
+            display_info["item24hrAvgPrice"], display_info["traderName"].strip(),
+            display_info["itemTraderPrice"].strip(), display_info["quests"]
+        ))
+
+        lock.acquire()
+        self.gui_queue.put([popup_str, display_info])
+        lock.release()
 
 
 class POINT(Structure):
     _fields_ = [("x", c_long), ("y", c_long)]
 
-
-def get_full_item_name(search_text: str, site: str):
-    if search_text == "":
-        return None
-    # Make a gamepedia search on the shorthand name
-    try:
-        if site == "market":
-            search_url = f'https://www.google.com/search?&q=tarkov+market+{urllib.parse.quote_plus(search_text)}'
-        else:
-            search_url = f'https://www.google.com/search?&q=tarkov+wiki+{urllib.parse.quote_plus(search_text)}'
-        page = requests.get(search_url)
-        if page.status_code != 200:
-            raise Exception("Error Code: ", page.status_code)
-        else:
-            print("Search Good")
-    except Exception as exception:
-        print("Unexpected error:", f"Couldn't get fullname from {site} search: ", exception)
-
-    # Parse scraped gamepedia search and make search on the found item page
-    soup = BeautifulSoup(page.content, 'html.parser')
-    print(search_url)
-    h3_list = soup.select('h3')
-    print(h3_list)
-    if len(h3_list) != 0:
-        h3_text = h3_list[0].get_text().split(" - ")[0]
-        print(h3_text)
-        return remove_prefix(h3_text, "https://escapefromtarkov.gamepedia.com/")
-    else:
-        return None
-
-def get_item_url(search_text: str, site: str):
-    # Make a gamepedia search on the shorthand name
-    try:
-        if site == "market":
-            search_url = "https://www.google.com/search?&q=tarkov+market+"+urllib.parse.quote_plus(search_text)
-        elif site == "wiki":
-            search_url = "https://www.google.com/search?&q=tarkov+wiki+"+urllib.parse.quote_plus(search_text)
-        page = requests.get(search_url)
-        if page.status_code != 200:
-            raise Exception("Error Code: ", page.status_code)
-        else:
-            print("Search Good")
-    except Exception as exception:
-        print("Unexpected error:", f"Couldn't get fullname from {site} search: ", exception)
-
-    # Parse scraped gamepedia search and make search on the found item page
-    soup = BeautifulSoup(page.content, 'html.parser')
-    print(type(soup))
-    print(search_url)
-    search_results = soup.findAll("div", {"class": "egMi0 kCrYT"})[0]
-    print("THE SEARCH DIV", len(search_results), search_results)
-    a_list = search_results.findAll("a", href=True)
-    print(a_list)
-    if len(a_list) != 0:
-        a_text = a_list[0]["href"]
-        if site in a_text:
-            print(a_text)
-            return f"https://google.com{a_text}"
-        else:
-            a_text = a_list[2]["href"]
-            print(a_text)
-            return f"https://google.com{a_text}"
-    else:
-        return None
 
 def queryMouse_position():
     pt = POINT()
@@ -746,20 +642,21 @@ def queryMouse_position():
 
 
 def remove_prefix(text, prefix):
-    return text[text.startswith(prefix) and len(prefix):]
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text
 
 
 def secondMax(list1):
-    if len(list1) <= 1:
-        return list1[0]
-    mx = max(list1[0], list1[1])
-    secondmax = min(list1[0], list1[1])
-    n = len(list1)
-    for i in range(2, n):
-        if list1[i] > mx:
-            secondmax = mx
-            mx = list1[i]
-        elif list1[i] > secondmax and \
-            mx != list1[i]:
-            secondmax = list1[i]
+    if len(list1) < 2:
+        return list1[0] if list1 else None
+    
+    mx = secondmax = float('-inf')
+    
+    for num in list1:
+        if num > mx:
+            secondmax, mx = mx, num
+        elif num > secondmax and num != mx:
+            secondmax = num
+    
     return secondmax

@@ -214,7 +214,7 @@ class GUI(App):
         '''
         if self.p_manager.is_alive():
             # Close main process manager thread
-            self.p_manager.Close()
+            self.p_manager.close()
             # Create a new process manager thread waiting to be started
             self.p_manager = ProcessManager(self.gui_queue, self.cmd_queue)
             self.settings_btn.config(state="normal")

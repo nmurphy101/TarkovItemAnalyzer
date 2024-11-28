@@ -42,7 +42,7 @@ def main():
         # End of the main app.
         root.mainloop()
         if gui.p_manager.is_alive():
-            gui.p_manager.Close()
+            gui.p_manager.close()
             gui.p_manager.join()
    
 

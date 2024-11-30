@@ -15,10 +15,13 @@
 __author__ = "Nicholas Murphy"
 __version__ = '1.0.0-alpha'
 
+import gc
 from tkinter import Tk
 from multiprocessing import Manager
 from multiprocessing import freeze_support
 from pkg.gui import GUI
+
+gc.enable()
 
 freeze_support()
 
@@ -41,9 +44,8 @@ def main():
 
         # End of the main app.
         root.mainloop()
-        if gui.p_manager.is_alive():
-            gui.p_manager.close()
-            gui.p_manager.join()
+
+        print("HUH?")
    
 
 if __name__ == "__main__":

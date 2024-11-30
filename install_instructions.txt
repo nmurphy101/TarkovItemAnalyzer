@@ -3,10 +3,4 @@
   - Note: Tesseract installs from https://github.com/UB-Mannheim/tesseract/wiki
 2. Replace the eng.traineddata file from this projects tessdata to C:\Program Files\Tesseract-OCR\tessdata
 3. Install the following python pip packages:
-pip3 install psutil
-pip3 install pypubsub
-pip3 install pytesseract
-pip3 install opencv-python
-pip3 install keyboard
-pip3 install bs4
-pip3 install pywin32
+```pip install requirements.txt```

@@ -11,34 +11,60 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
-
-import os
-import threading
+import gc
 import logging
-import sys
-import time
-import string
-import struct
+import os
 import re
-import requests
-import pytesseract
-import cv2
 import tempfile
+import threading
+import time
 import urllib
-import numpy as np
-import queue as q
+
+import cv2
 import keyboard
-from multiprocessing import Pool, cpu_count, Queue, Process, Manager, Lock
-from ctypes import windll, Structure, c_long, byref
-from PIL import ImageGrab, Image, ImageFilter, ImageEnhance
-from tkinter import messagebox, Toplevel, Label, Tk, Button, Text, INSERT, Frame
+import numpy as np
+import pytesseract
+import requests
 from bs4 import BeautifulSoup
-from scipy import misc, cluster
+from cv2.typing import MatLike
+from ctypes import byref, c_long, Structure, windll
+from multiprocessing import Lock, Process, Queue
+from PIL import Image, ImageGrab
 # pylint: disable=no-name-in-module, method-hidden
-from win32gui import GetWindowText, GetForegroundWindow
+from win32gui import GetForegroundWindow, GetWindowText
 # pylint: enable=no-name-in-module
+
+import queue as q
+
 pytesseract.pytesseract.tesseract_cmd = r"D:\Program Files\Tesseract-OCR\tesseract.exe"
 
+gc.enable()
+
+
+class ProcessManager2(threading.Thread):
+    def __init__(self):
+        super(ProcessManager2, self).__init__(name="ProcessManagerThread")
+        self.daemon = True
+        self.need_quit = False
+        self._stop_event = threading.Event()
+        # self.command_queue = command_queue
+        # self.gui_queue = gui_queue
+        # self.process_queue = process_queue
+
+    def quit(self):
+        logging.info("Stopping")
+        # self.process_queue.close()
+
+        # self.process_queue = None
+        # self.need_quit = True
+        # self._stop_event.set()
+
+        return
+
+    def run(self):
+        while not self.need_quit:
+            time.sleep(0.1)
+        return
 
 class ProcessManager(threading.Thread):
     '''
@@ -51,9 +77,8 @@ class ProcessManager(threading.Thread):
     Recieves instructions from the GUI via a different queue.
     '''
     def __init__(self, gui_queue, command_queue):
-        super(ProcessManager, self).__init__()
+        super(ProcessManager, self).__init__(name="ProcessManagerThread")
         self.daemon = True
-        self.setDaemon(True)
         self.need_quit = False
         # Setup the queues for the workers
         self.process_queue = Queue()
@@ -61,16 +86,22 @@ class ProcessManager(threading.Thread):
         self.gui_queue = gui_queue
         self.position_list = []
         self.num_workers = 3
+        self.workers = []
         self.position_record = []
         self.lock = Lock()
         self.img = None
         self.listen = True
         self.listen_lock = False
+        self.resumeEvent = threading.Event()
 
     def run(self):
+        self.need_quit = False
+        self.listen = True
         # Make the workers and start them up
-        for _ in range(self.num_workers):
-            Worker(self.process_queue, self.lock).start()
+        for idx in range(self.num_workers):
+            worker = Worker(self.process_queue, self.lock, name=f"Worker-{idx}")
+            self.workers.append(worker)
+            worker.start()
 
         self.capture_screenshots()
 
@@ -79,30 +110,39 @@ class ProcessManager(threading.Thread):
         keyboard.on_press_key(key="f", callback=self.on_release)
 
         # Take the screenshot for the item name (in inventory/stash)
-        while True:
+        while not self.need_quit:
+            if not self.listen:
+                self.resumeEvent.wait()
+                self.listen = True
+                self.resumeEvent.clear()
             try:
                 self.img = ImageGrab.grab()
-                if not self.listen:
-                    break
                 time.sleep(0.1)
                 self.listen_lock = False
             except Exception as e:
                 logging.error(f"Error capturing screenshot: {e}")
                 break
 
-    def close(self):
+    def quit(self):
         logging.info("Stopping")
+        self.listen = False
+        self.need_quit = True
         # Sentinel objects to allow clean shutdown: 1 per worker.
         for _ in range(self.num_workers):
             self.process_queue.put(None)
-        self.listen = False
-        threading.Thread.join(self, 3)
+
+        # wait for the workers to finish
+        for worker in self.workers:
+            worker.join()
+
+        # Stop the ProcessManager
+        self.join()
 
     def on_press(self, e):
         keyboard.on_release_key(key="f", callback=self.on_release)
 
     def on_release(self, e):
-        if self.listen_lock:
+        if self.listen_lock or self.need_quit:
             return
 
         self.listen_lock = True
@@ -136,8 +176,9 @@ class Worker(Process):
 
     Does stuff it's told to do in the queue.
     '''
-    def __init__(self, queue, lock):
-        super(Worker, self).__init__()
+    def __init__(self, queue, lock, name="WorkerProcess"):
+        super(Worker, self).__init__(name=name)
+        self.daemon = True
         self.queue = queue
         self.lock = lock
 
@@ -204,7 +245,8 @@ class MessageFunc():
             compare_img = cv2.imread("compare_img.png")
 
             if self.debug_mode >= 2:
-                self.show_images(compare_img, check_img)
+                self.show_image(compare_img, "compare_img", "Showing eyewear inventory text expected image")
+                self.show_image(check_img, "check_img", "Showing eyewear inventory text captured image")
 
             diff_num = self.mse(check_img, compare_img)
             is_inventory = self.determine_inventory(diff_num)
@@ -305,6 +347,8 @@ class MessageFunc():
                     logging.info("An Unknown Error Occured: ", error)
 
                 self.popup_error(lock, "Error, please try again")
+                # Stop the runloop for this process
+                self.need_quit = True
 
     def create_temp_files(self):
         return (
@@ -313,13 +357,11 @@ class MessageFunc():
             "temp_" + next(tempfile._get_candidate_names()) + ".png"
         )
     
-    def show_images(self, compare_img, check_img):
-        logging.info("Showing eyewear inventory text expected image")
-        cv2.imshow("image", compare_img)
-        cv2.waitKey(0)
-        logging.info("Showing eyewear inventory text captured image")
-        cv2.imshow("image", check_img)
-        cv2.waitKey(0)
+    def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True):
+        logging.info(message)
+        cv2.imshow(title, image)
+        if use_waitkey:
+            cv2.waitKey(0)
 
     def determine_inventory(self, diff_num):
         if self.debug_mode >= 1:
@@ -380,9 +422,8 @@ class MessageFunc():
             edged = cv2.Canny(image, 10, 250)
 
             if self.debug_mode >= 2:
-                cv2.imshow("gray", gray)
-                cv2.imshow("edged", edged)
-                cv2.waitKey(0)
+                self.show_image(gray, "gray", "Showing gray image", False)
+                self.show_image(edged, "edged", "Showing edged image")
 
             (cnts, _) = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -407,13 +448,12 @@ class MessageFunc():
                     area = height * width
                     areaList.append(area)
                     if self.debug_mode >= 3:
-                        cv2.imshow(f"slice_img{str(i)}", new_img)
+                        self.show_image(new_img, f"slice_img{str(i)}", f"Showing slice image {str(i)}")
                     i += 1
 
             if self.debug_mode >= 2:
-                logging.debug("Contours? ", len(areaList) == 0)
-                cv2.imshow("image", image)
-                cv2.waitKey(0)
+                self.show_image(image, "image", "Showing image with contours")
+                logging.debug(f"Number of Contours: {len(areaList) == 0}")
 
             # Check that it's a good image grab that has contour areas
             if len(areaList) == 0:
@@ -431,8 +471,7 @@ class MessageFunc():
             logging.debug("In raid, no contour corrector")
 
         if self.debug_mode >= 2:
-            cv2.imshow("final_image", image)
-            cv2.waitKey(0)
+            self.show_image(image, "final_image", "Showing final image")
 
         return image
     

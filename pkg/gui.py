@@ -10,16 +10,20 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
-
-import threading
-from datetime import datetime as time
-from datetime import timedelta 
+import gc
+import logging
 import queue as q
-import tkinter as Tk
-from tkinter import messagebox, Toplevel, Text, INSERT, Button, Label, Scrollbar, TclError, E, W, N, S
+import threading
+from datetime import datetime as time, timedelta
+
 import psutil
+import tkinter as Tk
 from pubsub import pub
+from tkinter import Button, E, Label, messagebox, N, S, TclError, Toplevel, W
+
 from .TIPA import ProcessManager
+
+gc.enable()
 
 
 class App:
@@ -69,7 +73,6 @@ class App:
         pubsub listener - opens main frame when otherFrame closes
         '''
         self.lock_frame(False)
-        # self.show()
 
     def hide(self):
         '''
@@ -162,7 +165,8 @@ class GUI(App):
         self.stop_btn = Button(self.menu_frame, text="Stop",
                                command=self.stop_process_manager)
         self.stop_btn.grid(row=0, column=2, sticky=W+N)
-        self.stop_btn.config(state="disabled")
+        self.start_btn.config(state="disabled")
+        self.settings_btn.config(state="disabled")
 
         # History list content
         self.history_frame = Tk.LabelFrame(self.body_frame, text="Item History", padx=5, pady=5)
@@ -170,8 +174,11 @@ class GUI(App):
         self.history_item_list = []
         self.history_frame.rowconfigure(0, weight=1)
         self.history_frame.columnconfigure(0, weight=1)
-        # self.history_vsbar = Scrollbar(self.history_frame)
-        # self.history_vsbar.grid(row=2, column=1, rowspan=2, sticky=N+S)
+
+        pub.subscribe(self.settingsMenulistener, "otherFrameClosed")
+
+        self.p_manager.start()
+        self.menu_frame.after(100, self.queue_loop)
 
     def queue_loop(self):
         '''
@@ -190,153 +197,106 @@ class GUI(App):
         else:
             self.menu_frame.after(500, self.queue_loop)
 
+    def settingsMenulistener(self):
+        '''
+        listener for the settings menu
+        '''
+        self.start_btn.config(state="normal")
+        self.settings_btn.config(state="normal")
+        self.stop_btn.config(state="disabled")
+
     def start_process_manager(self):
         '''
         starts the TIPA manager thread if tarkov is running
         '''
         if "EscapeFromTarkov.exe" in (p.name() for p in psutil.process_iter()):
-            if not self.p_manager.is_alive():
-                # Activate main process manager thread
-                self.p_manager.start()
-                self.menu_frame.after(100, self.queue_loop)
-            #
+            self.p_manager.resumeEvent.set()
             self.settings_btn.config(state="disabled")
             self.start_btn.config(state="disabled")
-            # todo: update this to state="normal" once memory leak is fixed with stopping
-            # and starting
-            self.stop_btn.config(state="disabled")
+            self.stop_btn.config(state="normal")
         else:
-            label = Label(self.menu_frame, text="ExcapeFromTarkov is not running")
-            # logging.warning('EscapeFromTarkov is not running')
+            label = Label(self.menu_frame, text="EscapeFromTarkov.exe is not running")
+            label.grid(row=0, column=0, pady=2)
+            self.menu_frame.after(self.alive_time-100, lambda: label.destroy())
+            self.menu_frame.update()
+
     def stop_process_manager(self):
         '''
         stops the TIPA manager process, and ready's a new manager thread
         '''
         if self.p_manager.is_alive():
-            # Close main process manager thread
-            self.p_manager.close()
-            # Create a new process manager thread waiting to be started
-            self.p_manager = ProcessManager(self.gui_queue, self.cmd_queue)
+            self.p_manager.listen = False
             self.settings_btn.config(state="normal")
             self.start_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
         else:
-            label = Label(self.body_frame, text="Analyzer already stopped")
-            # logging.warning('EscapeFromTarkov is not running')
-
-    def pop_always_on_top(self):
-        '''
-        pops a message overlay on the screen if one exists in the queue
-        '''
-        #
-        try:
-            item = self.gui_queue.get(timeout=1)
-        except q.Empty:
-            item = None
-
-        if item:
-            msg = item[0]
-            display_info = item[1]
-            print("GUI: ", msg)
-
-            widget = Toplevel()
-            # widget.wm_attributes('-alpha', 0.75)
-
-            display_info_keys = display_info.keys()
-            # If width and height isn't included let tkinter decide
-            if "w" in display_info_keys and "h" in display_info_keys:
-                widget.geometry(('%dx%d+%d+%d' % (display_info["w"], display_info["h"], 
-                                                  display_info["x"], display_info["y"])))
-            else:
-                widget.geometry(('+%d+%d' % (display_info["x"], display_info["y"])))
-            # Overlay widget settings
-            widget.attributes('-topmost', True)
-            widget.overrideredirect(True)
-            # Overlay message settings
-            msg_text = Text(widget, font=("Ariel", 12))
-            msg_text.insert(INSERT, str("\n"+msg))
-            msg_text.grid(row=0, column=0, pady=2)
-            # Create a Button
-            # btn = Button(widget, text = 'Skip', bd = '5', command = widget.destroy)  
-            # # Set the position of button on the bottom of window.    
-            # btn.grid(row=1, column=0, pady=2, sticky=W+E+S)
-            # Add to the window grid 
-            widget.grid_propagate(0)
-            # widget.after(6000, widget.destroy())
-            # widget.after(self.alive_time, lambda: widget.withdraw())
-            # widgets.append(widget)
-            print("--Displayed pop_always_on_top--")
+            label = Label(self.body_frame, text="Analyzer is not running")
+            label.grid(row=0, column=0, pady=2)
+            self.body_frame.after(self.alive_time-100, lambda: label.destroy())
+            self.body_frame.update()
 
     def popup(self):
         '''
-        pops a message overlay on the screen if one exists in the queue
+        Pops a message overlay on the screen if one exists in the queue.
         '''
-        if time.now() > self.since_last_popup + timedelta(0, self.alive_time/1000):
-            #
+        if time.now() > self.since_last_popup + timedelta(seconds=self.alive_time / 1000):
             try:
-                item = self.gui_queue.get(timeout=1)
+                message_item = self.gui_queue.get(timeout=1)
             except q.Empty:
-                item = None
+                message_item = None
         else:
-            item = None
+            message_item = None
 
-        if item and "Error" not in item[0]:
-            print("item: ", item)
-            self.add_to_history(item)
+        if message_item and "Error" not in message_item[0]:
+            logging.debug("item: %s", message_item)
+            self.add_to_history(message_item)
 
-            msg = item[0]
-            display_info = item[1]
-            print("GUI 1: ", msg)
+            msg = message_item[0]
+            logging.debug("GUI 1: %s", msg)
 
-            self.popup_widget.geometry('+%d+%d' % (0, 0))
-
+            self.popup_widget.geometry('+0+0')
             self.popup_widget.attributes('-topmost', True)
             self.popup_widget.overrideredirect(True)
 
-            label = Label(self.popup_widget, text=str("\n"+msg))
+            label = Label(self.popup_widget, text="\n" + msg)
             label.grid(row=0, column=0, pady=2)
 
             self.popup_widget.update()
             self.popup_widget.deiconify()
 
-            self.popup_widget.after(self.alive_time, lambda: self.popup_widget.withdraw())
-            self.popup_widget.after(self.alive_time-100, lambda: label.destroy())
-            
+            self.popup_widget.after(self.alive_time, self.popup_widget.withdraw)
+            self.popup_widget.after(self.alive_time - 100, label.destroy)
+
             self.since_last_popup = time.now()
 
-            print("--Displayed popup--")
+            logging.debug("--Displayed popup--")
 
-    def add_to_history(self, item):
+    def add_to_history(self, message_item):
         '''
         adds a message to the main apps window that doesn't expire like the popup
         '''
-        msg = item[0]
-        display_info = item[1]
-        print("GUI 2: ", msg)
+        msg = message_item[0]
+        logging.debug(f"GUI 2: {msg}")
 
-        k=0
-        for his_items in self.history_item_list:
-            his_items[0].forget()
-            his_items[1].forget()
-            k += 1
+        # Clear previous history items
+        for item_frame, label in self.history_item_list:
+            item_frame.forget()
+            label.forget()
 
+        # Create new history item
         item_frame = Tk.LabelFrame(self.history_frame, text="", padx=2, pady=2)
         label = Label(item_frame, text=str("\n"+msg))
         self.history_item_list.insert(0, (item_frame, label))
-        self.history_item_list = self.history_item_list[0:5]
-        # label_pos = len(self.history_item_list)-1
-        # item_frame.grid(row=label_pos, column=0)
-        # label.grid(row=0, column=0)
-        # self.history_frame.forget()
-        k=0
-        for his_items in self.history_item_list:
-            his_items[0].grid(row=k, column=0, sticky=E+W)
-            his_items[1].grid(row=0, column=0)
-            k += 1
-            
-        # self.history_frame.update()
+        
+        # Keep only the latest 5 history items
+        self.history_item_list = self.history_item_list[:5]
 
-        print("--Updated History--")
+        # Update the history display
+        for idx, (item_frame, label) in enumerate(self.history_item_list):
+            item_frame.grid(row=idx, column=0, sticky=E+W)
+            label.grid(row=0, column=0)
+
+        logging.debug("--Updated History--")
 
 
 class SettingsMenu(OtherFrame):
@@ -349,3 +309,7 @@ class SettingsMenu(OtherFrame):
     TITLE = "Settings"
     def __init__(self):
         super(SettingsMenu, self).__init__(SettingsMenu.TITLE)
+
+    def on_close(self):
+        super().on_close()
+        pub.sendMessage("SettingsMenuFrameClosed")

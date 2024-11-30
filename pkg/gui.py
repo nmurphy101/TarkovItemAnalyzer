@@ -22,7 +22,6 @@ from tkinter import Button, E, Label, messagebox, N, S, TclError, Toplevel, W
 
 from .TIPA import ProcessManager
 
-gc.enable()
 
 logging.basicConfig(level=logging.INFO)
 

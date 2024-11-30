@@ -38,14 +38,10 @@ def main():
         root.update() # This is the workaround
 
         # Run the gui
-        gui = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
-
-        print("running")
+        GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
 
         # End of the main app.
         root.mainloop()
-
-        print("HUH?")
    
 
 if __name__ == "__main__":

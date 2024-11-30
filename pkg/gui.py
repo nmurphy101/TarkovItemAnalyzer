@@ -10,7 +10,6 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
-import gc
 import logging
 import queue as q
 import threading
@@ -24,6 +23,8 @@ from tkinter import Button, E, Label, messagebox, N, S, TclError, Toplevel, W
 from .TIPA import ProcessManager
 
 gc.enable()
+
+logging.basicConfig(level=logging.INFO)
 
 
 class App:
@@ -99,7 +100,6 @@ class App:
         opens other frame and hides main frame
         '''
         self.lock_frame(True)
-        # self.hide()
         _ = sub_frame_class()
 
     def show(self):
@@ -122,7 +122,6 @@ class OtherFrame(Tk.Toplevel):
         self.geometry("400x300")
         self.title(title)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
-        # self.withdraw()
         # Menu bar
         self.menu_frame = Tk.Frame(self)
         self.menu_frame.grid(row=0, column=0, pady=2, sticky=W+E+N)
@@ -247,7 +246,7 @@ class GUI(App):
         else:
             message_item = None
 
-        if message_item and "Error" not in message_item[0]:
+        if message_item and "ERROR" not in message_item[0]:
             logging.debug("item: %s", message_item)
             self.add_to_history(message_item)
 
@@ -270,6 +269,12 @@ class GUI(App):
             self.since_last_popup = time.now()
 
             logging.debug("--Displayed popup--")
+        
+        elif message_item and "ERROR" in message_item[0]:
+            label = Label(self.body_frame, text=message_item[0])
+            label.grid(row=0, column=0, pady=2)
+            self.body_frame.after(self.alive_time-100, lambda: label.destroy())
+            self.body_frame.update()
 
     def add_to_history(self, message_item):
         '''

@@ -6,11 +6,12 @@ Tarkov Item Analyzer (TIA) allows you to know the price, and other informatino, 
 Follow the install_instructions.txt
 
 Else if a full release exists (and it isn't broken like the first one is):
+Run tarkov
 Use either the single exe file or the ziped directory or run the "python main.py" command directly
 Using admin privileges start the single exe file or the exe file within the unzipped directory.
 in 2-6sec the gui will open
-press the "start" button while tarkov has already started to have the program watch tarkov
 Start playing Tarkov as normal
+press the "stop" button to stop the analyzer from watching for the "f" inspect button press
 
 # How to use
 

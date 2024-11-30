@@ -11,7 +11,6 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
-import gc
 import logging
 import os
 import re
@@ -34,11 +33,9 @@ from PIL import Image, ImageGrab
 from win32gui import GetForegroundWindow, GetWindowText
 # pylint: enable=no-name-in-module
 
-import queue as q
-
 pytesseract.pytesseract.tesseract_cmd = r"D:\Program Files\Tesseract-OCR\tesseract.exe"
 
-gc.enable()
+logging.basicConfig(level=logging.INFO)
 
 
 class ProcessManager2(threading.Thread):
@@ -93,6 +90,13 @@ class ProcessManager(threading.Thread):
         self.listen = True
         self.listen_lock = False
         self.resumeEvent = threading.Event()
+        # Define display information for the popup window
+        self.display_info = {
+            "x": 0,
+            "y": 0,
+            "w": 210,  # width for the Tk root
+            "h": 120,  # height for the Tk root
+        }
 
     def run(self):
         self.need_quit = False
@@ -152,6 +156,7 @@ class ProcessManager(threading.Thread):
         active_window = GetWindowText(GetForegroundWindow())
         if active_window != "EscapeFromTarkov":
             logging.warning("Target process is not active")
+            self.popup_error(self.lock, "Tarkov is not the active window")
             return
 
         # Get the mouse position
@@ -167,6 +172,14 @@ class ProcessManager(threading.Thread):
 
         # Add this instance to the process queue and run it with a pool worker
         self.process_queue.put(MessageFunc(self.img, mouse_position, display_info, self.gui_queue))
+
+    def popup_error(self, lock, err_msg):
+        # Make the popup string message
+        popup_str = f"ERROR: {err_msg}"
+
+        # Get the multiprocess lock and update the GUI window
+        with lock:
+            self.gui_queue.put([popup_str, self.display_info])
 
 
 class Worker(Process):
@@ -225,7 +238,7 @@ class MessageFunc():
 
     def popup_error(self, lock, err_msg):
         # Make the popup string message
-        popup_str = f"{err_msg}"
+        popup_str = f"ERROR: {err_msg}"
 
         # Get the multiprocess lock and update the GUI window
         with lock:

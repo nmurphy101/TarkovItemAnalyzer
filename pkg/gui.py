@@ -10,20 +10,27 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
-import logging
+import json
+import os
 import queue as q
 import threading
 from datetime import datetime as time, timedelta
 
 import psutil
+import pytesseract
 import tkinter as Tk
 from pubsub import pub
-from tkinter import Button, E, Label, messagebox, N, S, TclError, Toplevel, W
+from tkinter import Button, Label, messagebox, OptionMenu, StringVar, TclError, Toplevel, N, S, E, W
 
 from .TIPA import ProcessManager
+from logger_config import logger
 
 
-logging.basicConfig(level=logging.INFO)
+if os.path.exists("settings.json"):
+    with open("settings.json", "r") as settings_file:
+        settings = json.load(settings_file)
+        tesseract_path = settings.get("tesseract_path", "")
+    pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
 
 
 class App:
@@ -174,6 +181,7 @@ class GUI(App):
         self.history_frame.columnconfigure(0, weight=1)
 
         pub.subscribe(self.settingsMenulistener, "otherFrameClosed")
+        pub.subscribe(self.restartRequiredListener, "RestartRequired")
 
         self.p_manager.start()
         self.menu_frame.after(100, self.queue_loop)
@@ -203,6 +211,17 @@ class GUI(App):
         self.settings_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
 
+    def restartRequiredListener(self):
+        '''
+        listener for the restart required message
+        '''
+        label = Label(self.body_frame, text="tesseract_path has been changed, please restart the application")
+        label.grid(row=0, column=0, pady=2)
+        self.body_frame.update()
+        self.start_btn.config(state="disabled")
+        self.settings_btn.config(state="disabled")
+        self.stop_btn.config(state="disabled")
+
     def start_process_manager(self):
         '''
         starts the TIPA manager thread if tarkov is running
@@ -213,10 +232,10 @@ class GUI(App):
             self.start_btn.config(state="disabled")
             self.stop_btn.config(state="normal")
         else:
-            label = Label(self.menu_frame, text="EscapeFromTarkov.exe is not running")
+            label = Label(self.body_frame, text="EscapeFromTarkov.exe is not running")
             label.grid(row=0, column=0, pady=2)
-            self.menu_frame.after(self.alive_time-100, lambda: label.destroy())
-            self.menu_frame.update()
+            self.body_frame.after(self.alive_time-100, lambda: label.destroy())
+            self.body_frame.update()
 
     def stop_process_manager(self):
         '''
@@ -246,17 +265,17 @@ class GUI(App):
             message_item = None
 
         if message_item and "ERROR" not in message_item[0]:
-            logging.debug("item: %s", message_item)
+            logger.debug(f"item: {message_item}")
             self.add_to_history(message_item)
 
             msg = message_item[0]
-            logging.debug("GUI 1: %s", msg)
+            logger.debug(f"Popping up message: {msg}")
 
             self.popup_widget.geometry('+0+0')
             self.popup_widget.attributes('-topmost', True)
             self.popup_widget.overrideredirect(True)
 
-            label = Label(self.popup_widget, text="\n" + msg)
+            label = Label(self.popup_widget, text=f"\n{msg}")
             label.grid(row=0, column=0, pady=2)
 
             self.popup_widget.update()
@@ -267,7 +286,7 @@ class GUI(App):
 
             self.since_last_popup = time.now()
 
-            logging.debug("--Displayed popup--")
+            logger.debug("--Displayed popup--")
         
         elif message_item and "ERROR" in message_item[0]:
             label = Label(self.body_frame, text=message_item[0])
@@ -280,7 +299,7 @@ class GUI(App):
         adds a message to the main apps window that doesn't expire like the popup
         '''
         msg = message_item[0]
-        logging.debug(f"GUI 2: {msg}")
+        logger.debug(f"Adding to history: {msg}")
 
         # Clear previous history items
         for item_frame, label in self.history_item_list:
@@ -300,7 +319,7 @@ class GUI(App):
             item_frame.grid(row=idx, column=0, sticky=E+W)
             label.grid(row=0, column=0)
 
-        logging.debug("--Updated History--")
+        logger.debug("--Updated History--")
 
 
 class SettingsMenu(OtherFrame):
@@ -314,6 +333,88 @@ class SettingsMenu(OtherFrame):
     def __init__(self):
         super(SettingsMenu, self).__init__(SettingsMenu.TITLE)
 
+        self.restart_required = False
+
+        # Menu bar
+        self.menu_frame = Tk.Frame(self)
+        self.menu_frame.grid(row=0, column=0, pady=2, sticky=W+E+N)
+
+        # Create the button
+        self.close_btn = Tk.Button(self, text="Close", command=self.on_close)
+        self.close_btn.grid(row=1, column=0, sticky=W+E+N)
+
+        # Create a label and text box for the Tesseract path
+        self.tesseract_label = Tk.Label(self, text="Tesseract Path:")
+        self.tesseract_label.grid(row=2, column=0, sticky=W)
+        self.tesseract_path_entry = Tk.Entry(self, width=50)
+        self.tesseract_path_entry.grid(row=2, column=1, sticky=W+E)
+
+        # Create a label and dropdown for the debug level
+        self.debug_level_label = Tk.Label(self, text="Debug Level:")
+        self.debug_level_label.grid(row=3, column=0, sticky=W)
+        self.debug_level_var = StringVar(self)
+        self.debug_level_var.set("INFO")  # Default value
+        self.debug_level_options = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        self.debug_level_menu = OptionMenu(self, self.debug_level_var, *self.debug_level_options)
+        self.debug_level_menu.grid(row=3, column=1, sticky=W+E)
+
+        # Load settings from the JSON file
+        self.load_settings()
+
+        # Create a save button
+        self.save_btn = Tk.Button(self, text="Save", command=self.save_settings)
+        self.save_btn.grid(row=4, column=0, columnspan=2, sticky=W+E+N)
+
+    def update_settings(self, settings):
+        # Update the settings from the text box
+        pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
+        logger.setLevel(settings.get("debug_level", "INFO"))
+
+    def load_settings(self):
+        # Check if the settings file exists
+        if os.path.exists("settings.json"):
+            with open("settings.json", "r") as settings_file:
+                settings = json.load(settings_file)
+                tesseract_path = settings.get("tesseract_path", "")
+                self.tesseract_path_entry.insert(0, tesseract_path)
+                debug_level = settings.get("debug_level", "INFO")
+                self.debug_level_var.set(debug_level)
+
+        self.update_settings(settings)
+
+    def save_settings(self):
+        # Get the form values
+        tesseract_path = self.tesseract_path_entry.get()
+        debug_level = self.debug_level_var.get()
+
+        # Create a dictionary to hold the settings
+        settings = {
+            "tesseract_path": tesseract_path,
+            "debug_level": debug_level
+        }
+
+        # Load the settings from the JSON file
+        if os.path.exists("settings.json"):
+            with open("settings.json", "r") as settings_file:
+                old_settings = json.load(settings_file)
+                old_tesseract_path = old_settings.get("tesseract_path", "")
+        else:
+            old_tesseract_path = ""
+
+        # Save the updated settings to the JSON file
+        with open("settings.json", "w") as settings_file:
+            json.dump(settings, settings_file, indent=4)
+
+        self.update_settings(settings)
+
+        # Optionally, show a message box to confirm the save
+        if tesseract_path != old_tesseract_path:
+            messagebox.showinfo("Settings", "Settings saved successfully!\nPlease restart the application to apply the changes.")
+            self.restart_required = True
+        else:
+            messagebox.showinfo("Settings", "Settings saved successfully!")
+
     def on_close(self):
         super().on_close()
-        pub.sendMessage("SettingsMenuFrameClosed")
+        if self.restart_required:
+            pub.sendMessage("RestartRequired")

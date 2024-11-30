@@ -11,7 +11,6 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
-import logging
 import os
 import re
 import tempfile
@@ -33,35 +32,8 @@ from PIL import Image, ImageGrab
 from win32gui import GetForegroundWindow, GetWindowText
 # pylint: enable=no-name-in-module
 
-pytesseract.pytesseract.tesseract_cmd = r"D:\Program Files\Tesseract-OCR\tesseract.exe"
+from logger_config import logger
 
-logging.basicConfig(level=logging.INFO)
-
-
-class ProcessManager2(threading.Thread):
-    def __init__(self):
-        super(ProcessManager2, self).__init__(name="ProcessManagerThread")
-        self.daemon = True
-        self.need_quit = False
-        self._stop_event = threading.Event()
-        # self.command_queue = command_queue
-        # self.gui_queue = gui_queue
-        # self.process_queue = process_queue
-
-    def quit(self):
-        logging.info("Stopping")
-        # self.process_queue.close()
-
-        # self.process_queue = None
-        # self.need_quit = True
-        # self._stop_event.set()
-
-        return
-
-    def run(self):
-        while not self.need_quit:
-            time.sleep(0.1)
-        return
 
 class ProcessManager(threading.Thread):
     '''
@@ -124,11 +96,11 @@ class ProcessManager(threading.Thread):
                 time.sleep(0.1)
                 self.listen_lock = False
             except Exception as e:
-                logging.error(f"Error capturing screenshot: {e}")
+                logger.error(f"Error capturing screenshot: {e}")
                 break
 
     def quit(self):
-        logging.info("Stopping")
+        logger.info("Stopping")
         self.listen = False
         self.need_quit = True
         # Sentinel objects to allow clean shutdown: 1 per worker.
@@ -150,12 +122,12 @@ class ProcessManager(threading.Thread):
             return
 
         self.listen_lock = True
-        logging.info("Got Listen Lock / released f")
+        logger.debug("Got Listen Lock / released f")
 
         # Check if Tarkov is the focused window before doing anything else
         active_window = GetWindowText(GetForegroundWindow())
         if active_window != "EscapeFromTarkov":
-            logging.warning("Target process is not active")
+            logger.warning("Target process is not active")
             self.popup_error(self.lock, "Tarkov is not the active window")
             return
 
@@ -219,30 +191,15 @@ class MessageFunc():
         self.mouse_pos = mouse_pos
         self.display_info_init = display_info_init
         self.gui_queue = gui_queue
-        self.debug_mode = 0
-    
-    def mse(self, imageA: np.ndarray, imageB: np.ndarray) -> float:
-        '''
-        The 'Mean Squared Error' between the two images is the
-        sum of the squared difference between the two images;
-        NOTE: the two images must have the same dimension
-        '''
-        if imageA.shape != imageB.shape:
-            raise ValueError("Input images must have the same dimensions")
-        
-        # Calculate the mean squared error using NumPy's built-in functions
-        err = np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
-        
-        # Return the MSE, the lower the error, the more "similar" the two images are
-        return err
-
-    def popup_error(self, lock, err_msg):
-        # Make the popup string message
-        popup_str = f"ERROR: {err_msg}"
-
-        # Get the multiprocess lock and update the GUI window
-        with lock:
-            self.gui_queue.put([popup_str, self.display_info_init])
+        # The debug mode determines what logs and images are shown when running
+        logger_levels = {
+            10: 3,  # DEBUG
+            20: 1,  # INFO
+            30: 2,  # WARNING
+            40: 2,  # ERROR
+            50: 2,  # CRITICAL
+        }
+        self.debug_mode = logger_levels[logger.level]
 
     def run(self, lock):
         while not self.need_quit:
@@ -278,19 +235,18 @@ class MessageFunc():
             try:
                 while not found:
                     if self.debug_mode >= 1:
-                        logging.info("Found?? ", found, main_try_attempt, ">", main_try_limit)
+                        logger.info(f"Found?? {found} {main_try_attempt} > {main_try_limit}")
 
                     if main_try_attempt > main_try_limit:
                         self.need_quit = True
                         break
 
                     # Run tesseract on the image
-                    image = self.process_image(main_try_attempt, lock, temp_files, is_inventory)
+                    image = self.process_image(main_try_attempt, temp_files, is_inventory)
 
                     if image is None:
                         if self.debug_mode >= 1:
-                            logging.info("No captures found")
-                            logging.info(" -  - " * 8)
+                            logger.info("No captures found")
                         self.popup_error(lock, "Error, please try again")
                         main_try_attempt = main_try_attempt + 1
                         self.need_quit = True
@@ -299,12 +255,15 @@ class MessageFunc():
                     text, threshold = self.extract_text(image)
 
                     if self.debug_mode >= 3:
-                        img = Image.fromarray(threshold, "RGB")
-                        img.show()
-                        cv2.waitKey(0)
+                        try:
+                            img = Image.fromarray(threshold, "RGB")
+                            img.show()
+                            cv2.waitKey(0)
+                        except Exception as e:
+                            logger.error(f"Error displaying threshold image: {e}")
 
                     elif self.debug_mode >= 1:
-                        logging.debug("{{{ ", text, "}}}")
+                        logger.debug(f"Extracted Text: {text}")
                         
                     wordlist = self.clean_text(text)
 
@@ -324,7 +283,7 @@ class MessageFunc():
                         break
 
                     if self.debug_mode >= 1:
-                        logging.info(corrected_text, " to correct ", true_name)
+                        logger.info(corrected_text, " to correct ", true_name)
 
                     URL = self.get_item_url(corrected_text, "market")
                     page, page2 = self.fetch_pages(URL, true_name)
@@ -336,13 +295,12 @@ class MessageFunc():
                         break
 
                     if self.debug_mode >= 1:
-                        logging.info("Getting Item Information...")
+                        logger.info("Getting Item Information...")
 
                     display_info = self.parse_pages(page, page2, true_name)
 
                     if self.debug_mode >= 1:
-                        logging.debug("PARSED INFO: ", display_info["itemLastLowSoldPrice"], display_info["item24hrAvgPrice"], display_info["traderName"], display_info["itemTraderPrice"], "\n", display_info["quests"])
-                        logging.debug("="*80)
+                        logger.info("PARSED INFO: ", display_info["itemLastLowSoldPrice"], display_info["item24hrAvgPrice"], display_info["traderName"], display_info["itemTraderPrice"], "\n", display_info["quests"])
 
                     # Popup display information/position dictionary
                     display_info.update(self.display_info_init)
@@ -357,11 +315,34 @@ class MessageFunc():
 
             except Exception as error:
                 if self.debug_mode >= 1:
-                    logging.info("An Unknown Error Occured: ", error)
+                    logger.info("An Unknown Error Occured: ", error)
 
                 self.popup_error(lock, "Error, please try again")
                 # Stop the runloop for this process
                 self.need_quit = True
+
+    def mse(self, imageA: np.ndarray, imageB: np.ndarray) -> float:
+        '''
+        The 'Mean Squared Error' between the two images is the
+        sum of the squared difference between the two images;
+        NOTE: the two images must have the same dimension
+        '''
+        if imageA.shape != imageB.shape:
+            raise ValueError("Input images must have the same dimensions")
+        
+        # Calculate the mean squared error using NumPy's built-in functions
+        err = np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
+        
+        # Return the MSE, the lower the error, the more "similar" the two images are
+        return err
+
+    def popup_error(self, lock, err_msg):
+        # Make the popup string message
+        popup_str = f"ERROR: {err_msg}"
+
+        # Get the multiprocess lock and update the GUI window
+        with lock:
+            self.gui_queue.put([popup_str, self.display_info_init])
 
     def create_temp_files(self):
         return (
@@ -371,21 +352,21 @@ class MessageFunc():
         )
     
     def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True):
-        logging.info(message)
+        logger.info(message)
         cv2.imshow(title, image)
         if use_waitkey:
             cv2.waitKey(0)
 
     def determine_inventory(self, diff_num):
         if self.debug_mode >= 1:
-            logging.debug("Diff: ", diff_num)
+            logger.debug("Diff: ", diff_num)
         if diff_num < 2000:
             if self.debug_mode:
-                logging.info("Inventory screenshot")
+                logger.info("Inventory screenshot")
             return True
         else:
             if self.debug_mode >= 1:
-                logging.info("In raid screenshot")
+                logger.info("In raid screenshot")
             return False
         
     def get_search_areas(self, inventory):
@@ -403,14 +384,14 @@ class MessageFunc():
     
     def extract_text(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        retval, threshold = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+        _, threshold = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
         return pytesseract.image_to_string(threshold, lang="eng", config="--psm 6"), threshold
 
     def clean_text(self, text):
         wordlist = text.strip().split()
         
         if self.debug_mode >= 1:
-            logging.info(wordlist, wordlist[len(wordlist)-1])
+            logger.info(wordlist, wordlist[len(wordlist)-1])
 
         new_wordlist = []
         for word in wordlist:
@@ -418,7 +399,7 @@ class MessageFunc():
                 new_wordlist.append(word.strip(r"[-'”\".`@_!#$%^&*<>?/\}{~:]"))
         return new_wordlist
 
-    def process_image(self, attempt, lock, temp_files, is_inventory):
+    def process_image(self, attempt, temp_files, is_inventory):
         if attempt == 1:
             image1 = cv2.imread(temp_files[1])
             image2 = cv2.imread(temp_files[2])
@@ -430,7 +411,7 @@ class MessageFunc():
             image = cv2.resize(image2, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
 
         if is_inventory:
-            logging.debug("In inventory contour corrector")
+            logger.debug("In inventory contour corrector")
             gray = cv2.cvtColor(image ,cv2.COLOR_BGR2GRAY)
             edged = cv2.Canny(image, 10, 250)
 
@@ -457,7 +438,7 @@ class MessageFunc():
                     idx += 1
                     new_img = image[y+13:y+h-11,x+11:x+w-11]
                     imagesList.append(new_img)
-                    height, width, z = np.array(new_img).shape
+                    height, width, _ = np.array(new_img).shape
                     area = height * width
                     areaList.append(area)
                     if self.debug_mode >= 3:
@@ -466,22 +447,21 @@ class MessageFunc():
 
             if self.debug_mode >= 2:
                 self.show_image(image, "image", "Showing image with contours")
-                logging.debug(f"Number of Contours: {len(areaList) == 0}")
+                logger.debug(f"Number of Contours: {len(areaList) == 0}")
 
             # Check that it's a good image grab that has contour areas
             if len(areaList) == 0:
                 return None
 
-            # inbuilt function to find the position of second maximum sized cropped image
-            # secondMaxPos = areaList.index(secondMax(areaList))
-            # inbuilt function to find the position of maximum
+            # Largest area that should contain the item name text
             maxPos = areaList.index(max(areaList))
+
             # Get the chosen image
             final_img = imagesList[maxPos]
             image = final_img
 
         else:
-            logging.debug("In raid, no contour corrector")
+            logger.debug("In raid, no contour corrector")
 
         if self.debug_mode >= 2:
             self.show_image(image, "final_image", "Showing final image")
@@ -499,7 +479,7 @@ class MessageFunc():
         corrected_text = " ".join(wordlist)
 
         if self.debug_mode >= 1:
-            logging.debug(corrected_text)
+            logger.debug(corrected_text)
 
         rep = {
             " ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
@@ -537,7 +517,7 @@ class MessageFunc():
                 return None
 
         except Exception as e:
-            logging.error(f"Error: Couldn't get fullname from {site} search: {e}")
+            logger.error(f"Error: Couldn't get fullname from {site} search: {e}")
             return None
 
 
@@ -566,7 +546,7 @@ class MessageFunc():
             return f"https://google.com{a_list[0]['href']}" if a_list else None
 
         except Exception as e:
-            logging.error(f"Error: Couldn't get item url from {site} search: {e}")
+            logger.error(f"Error: Couldn't get item url from {site} search: {e}")
             return None
         
     def fetch_pages(self, URL, true_name):
@@ -577,7 +557,7 @@ class MessageFunc():
         while tryCounter <= tryLimit:
             try:
                 if self.debug_mode >= 1:
-                    logging.debug("Tarkov market request Try: ", tryCounter, " ", URL)
+                    logger.debug("Tarkov market request Try: ", tryCounter, " ", URL)
 
                 page1 = requests.get(URL)
 
@@ -600,12 +580,12 @@ class MessageFunc():
                 
         if tryCounter > tryLimit:
             if self.debug_mode >= 1:
-                logging.warning("Try limit reached on tarkov-market page")
+                logger.warning("Try limit reached on tarkov-market page")
             return None, None
 
         if page1 is None or page1.status_code != 200:
             if self.debug_mode >= 1:
-                logging.info("Unable to find tarkov-market page")
+                logger.info("Unable to find tarkov-market page")
             return None, None
 
         # Scrape the gamepedia item webpage for more item details
@@ -618,11 +598,11 @@ class MessageFunc():
 
         except Exception as e:
             if self.debug_mode >= 1:
-                logging.error("Unexpected error: ", e, exc_info=True)
+                logger.error("Unexpected error: ", e, exc_info=True)
 
         if page2 is None or page2.status_code != 200:
             if self.debug_mode >= 1:
-                logging.info("Unable to find gamepedia page")
+                logger.info("Unable to find gamepedia page")
             return None, None
 
         return page1, page2
@@ -697,18 +677,3 @@ def remove_prefix(text, prefix):
     if text.startswith(prefix):
         return text[len(prefix):]
     return text
-
-
-def secondMax(list1):
-    if len(list1) < 2:
-        return list1[0] if list1 else None
-    
-    mx = secondmax = float('-inf')
-    
-    for num in list1:
-        if num > mx:
-            secondmax, mx = mx, num
-        elif num > secondmax and num != mx:
-            secondmax = num
-    
-    return secondmax

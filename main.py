@@ -20,12 +20,16 @@ from tkinter import Tk
 from multiprocessing import Manager
 from multiprocessing import freeze_support
 from pkg.gui import GUI
+from logger_config import logger
 
 gc.enable()
 
 freeze_support()
 
+
 def main():
+        
+        logger.info("Starting Tarkov Item Analyzer")
     
         # Gui manager and command manager queues'
         manager = Manager()

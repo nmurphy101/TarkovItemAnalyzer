@@ -17,7 +17,7 @@ Start playing Tarkov as normal
 Make sure you're in borderless mode for tarkov, fullscreen will get you tabbed out by this app.
 
 When in an inventory screen (Stash or match) hover your mouse over an item and wait for the black box with the item name to appear
-Press "f" to get the item information (the result takes ~2-3sec to appear in upper right corner)
+Press "f" to get the item information (the result takes ~2-3sec to appear in upper left corner)
 If nothing happens or an error message appears try again.
 If it continues to fail let me know that item doesn't work and can't be found.
 
@@ -37,8 +37,3 @@ pyinstaller --noconfirm --onefile --windowed --clean --add-data "C:/DIR_LOCATION
 - Not all items will work as I haven't tested for every one of them.
 - The "loose item" item information might be innacurate as tarkov uses shorthand names for loose items
   (ie pst gzh vs pst gzh for two different calibers), so use inventory screen to get more accurate information.
-- In the current release there is a large-ish memory leak when you press the "stop" button then the "start" button. So just don't press "stop"
-- In the current release there is a small memory leak when you press "f" checking items for information.
-  - For both of these memory leaks I suggest closing the app and opening it again every so often to release the memory.
-  - This is caused by the keylogger that watches for button presses (ie the "f" key, it's not necessarily the code here, perhaps the implementation)
-- Some spaghetti code here, enjoy if you look through it. Might clean it up more later.

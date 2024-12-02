@@ -235,10 +235,7 @@ class GUI(App):
             self.start_btn.config(state="disabled")
             self.stop_btn.config(state="normal")
         else:
-            label = Label(self.body_frame, text="EscapeFromTarkov.exe is not running")
-            label.grid(row=0, column=0, pady=2)
-            self.body_frame.after(self.alive_time-100, lambda: label.destroy())
-            self.body_frame.update()
+            self.display_body_message("EscapeFromTarkov.exe is not running")
 
     def stop_process_manager(self) -> None:
         '''
@@ -250,10 +247,7 @@ class GUI(App):
             self.start_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
         else:
-            label = Label(self.body_frame, text="Analyzer is not running")
-            label.grid(row=0, column=0, pady=2)
-            self.body_frame.after(self.alive_time-100, lambda: label.destroy())
-            self.body_frame.update()
+            self.display_body_message("Analyzer is not running")
 
     def popup(self) -> None:
         '''
@@ -292,10 +286,18 @@ class GUI(App):
             logger.debug("--Displayed popup--")
         
         elif message_item and "ERROR" in message_item[0]:
-            label = Label(self.body_frame, text=message_item[0])
-            label.grid(row=0, column=0, pady=2)
-            self.body_frame.after(self.alive_time-100, lambda: label.destroy())
-            self.body_frame.update()
+            self.display_body_message(message_item[0])
+
+    def display_body_message(self, message: str, display_time: int = None) -> None:
+        '''
+        displays a message in the main body of the app
+        '''
+        if display_time is None:
+            display_time = self.alive_time
+        label = Label(self.body_frame, text=message)
+        label.grid(row=0, column=0, pady=2)
+        self.body_frame.after(display_time-100, lambda: label.destroy())
+        self.body_frame.update()
 
     def add_to_history(self, message_item) -> None:
         '''

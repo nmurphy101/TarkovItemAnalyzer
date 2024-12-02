@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 import urllib
+from urllib.parse import urlencode
 
 import cv2
 import keyboard
@@ -184,6 +185,17 @@ class MessageFunc():
     the item name box popup appears when mouse hovering the item in inventory/stash,
     and popups the item's market price and item quest information if it exists.
     '''
+
+    # Constants for UI coordinates
+    INVENTORY_COORDS = {
+        'eyewear_text': {
+            'x1': 598,
+            'y1': 421,
+            'x2': 692,
+            'y2': 441
+        }
+    }
+
     def __init__(self, img: Image, mouse_pos: dict, display_info_init: dict[str, int], gui_queue: Queue):
         self.need_quit = False
         self.img = img
@@ -207,7 +219,12 @@ class MessageFunc():
 
             # Determine if in inventory/stash or game(picking up loose item)
             # Get the "eyewear" inventory text  in the inventory screen as a determinate
-            check_img = self.img.crop((598, 421, 692, 441))
+            check_img = self.img.crop((
+                self.INVENTORY_COORDS['eyewear_text']['x1'],
+                self.INVENTORY_COORDS['eyewear_text']['y1'],
+                self.INVENTORY_COORDS['eyewear_text']['x2'],
+                self.INVENTORY_COORDS['eyewear_text']['y2'],
+            ))
             check_img.save(temp_files[0], dpi=(5000, 5000))
             check_img = cv2.imread(temp_files[0])
             os.remove(temp_files[0])
@@ -491,6 +508,24 @@ class MessageFunc():
         rep = {re.escape(k): v for k, v in rep.items()}
         pattern = re.compile("|".join(rep.keys()))
         return pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
+    
+    def construct_search_url(self, site: str, search_text: str) -> str:
+        if not search_text:
+            return None
+        
+        base_urls = {
+            'market': 'https://www.google.com/search',
+            'wiki': 'https://www.google.com/search'
+        }
+        
+        if site not in base_urls:
+            raise ValueError(f"Invalid site: {site}")
+            
+        params = {
+            'q': f'tarkov {site} {search_text}'
+        }
+        
+        return f"{base_urls[site]}?{urlencode(params)}"
 
 
     def get_full_item_name(self, search_text: str, site: str) -> str:
@@ -501,7 +536,7 @@ class MessageFunc():
             if site not in ["market", "wiki"]:
                 raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
 
-            search_url = f"https://www.google.com/search?q=tarkov+{site}+" + urllib.parse.quote_plus(search_text)
+            search_url = self.construct_search_url(site, search_text)
             page = requests.get(search_url, timeout=10)
             page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
 
@@ -524,7 +559,7 @@ class MessageFunc():
             if site not in ["market", "wiki"]:
                 raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
 
-            search_url = f"https://www.google.com/search?q=tarkov+{site}+" + urllib.parse.quote_plus(search_text)
+            search_url = self.construct_search_url(site, search_text)
             page = requests.get(search_url, timeout=10)
             page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
 

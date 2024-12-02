@@ -59,27 +59,27 @@
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/pkg;pkg/"
+   "value": "pkg;pkg/"
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/tessdata;tessdata/"
+   "value": "tessdata;tessdata/"
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/compare_img.png;."
+   "value": "compare_img.png;."
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/LICENSE;."
+   "value": "LICENSE;."
   },
   {
     "optionDest": "datas",
-    "value": "C:/program_projects/Tarkov_Item_Analyzer/settings.json;."
+    "value": "settings.json;."
    },
    {
     "optionDest": "datas",
-    "value": "C:/program_projects/Tarkov_Item_Analyzer/logger_config.py;."
+    "value": "logger_config.py;."
    },
   {
    "optionDest": "hiddenimports",

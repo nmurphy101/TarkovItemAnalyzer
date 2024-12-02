@@ -11,13 +11,13 @@
     :license: GPLv2, see LICENSE for more details.
 '''
 
+import atexit
 import os
 import re
 import tempfile
 import threading
 import time
-import urllib
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import cv2
 import keyboard
@@ -30,7 +30,7 @@ from ctypes import byref, c_long, Structure, windll
 from multiprocessing import Lock, Process, Queue
 from multiprocessing.synchronize import Lock as LockType
 from PIL import Image, ImageGrab
-from requests import Response
+from requests import HTTPError, RequestException, Response, Timeout
 # pylint: disable=no-name-in-module, method-hidden
 from win32gui import GetForegroundWindow, GetWindowText
 # pylint: enable=no-name-in-module
@@ -48,7 +48,7 @@ class ProcessManager(threading.Thread):
     Communicates with the GUI via a queue.
     Recieves instructions from the GUI via a different queue.
     '''
-    def __init__(self, gui_queue: Queue, command_queue: Queue):
+    def __init__(self, gui_queue: Queue, command_queue: Queue) -> None:
         super().__init__(name="ProcessManagerThread")
         self.daemon = True
         self.need_quit = False
@@ -98,9 +98,12 @@ class ProcessManager(threading.Thread):
                 self.img = ImageGrab.grab()
                 time.sleep(0.1)
                 self.listen_lock = False
-            except Exception as e:
-                logger.error(f"Error capturing screenshot: {e}")
-                break
+            except ImageGrab.ImageGrabError:
+                logger.exception("Error capturing screenshot")
+                self.need_quit = True
+            except OSError:
+                logger.exception("Error accessing screenshot")
+                self.need_quit = True
 
     def quit(self) -> None:
         logger.info("Stopping")
@@ -275,7 +278,7 @@ class MessageFunc():
                             img = Image.fromarray(threshold, "RGB")
                             img.show()
                             cv2.waitKey(0)
-                        except Exception as e:
+                        except (ValueError, OSError) as e:
                             logger.error(f"Error displaying threshold image: {e}")
 
                     elif self.debug_mode >= 1:
@@ -329,9 +332,9 @@ class MessageFunc():
                 # Stop the runloop for this process
                 self.need_quit = True
 
-            except Exception as error:
+            except (requests.RequestException, ValueError) as error:
                 if self.debug_mode >= 1:
-                    logger.info(f"An Unknown Error Occured: {error}")
+                    logger.exception(f"Failed to process request: {error}")
 
                 self.popup_error(lock, "Error, please try again")
                 # Stop the runloop for this process
@@ -357,13 +360,21 @@ class MessageFunc():
         # Get the multiprocess lock and update the GUI window
         with lock:
             self.gui_queue.put([popup_str, self.display_info_init])
-
-    def create_temp_files(self):
+    
+    def create_temp_files(self) -> tuple[str, ...]:
+        """Create temporary files with proper cleanup."""
         temp_files = []
         for _ in range(3):
-            temp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            temp_files.append(temp.name)
-            temp.close()
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=".png",
+                prefix="tia_",  # Add prefix for identification
+                mode="w+b"
+            ) as temp:
+                temp_files.append(temp.name)
+        
+        # Register cleanup handler
+        atexit.register(lambda: [os.unlink(f) for f in temp_files if os.path.exists(f)])
         return tuple(temp_files)
     
     def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True) -> None:
@@ -537,6 +548,11 @@ class MessageFunc():
                 raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
 
             search_url = self.construct_search_url(site, search_text)
+            # Validate URL
+            parsed = urlparse(search_url)
+            if not all([parsed.scheme, parsed.netloc]):
+                raise ValueError("Invalid URL constructed")
+
             page = requests.get(search_url, timeout=10)
             page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
 
@@ -549,8 +565,14 @@ class MessageFunc():
             else:
                 return None
 
-        except requests.RequestException as e:
-            logger.exception(f"Error getting item URL from {site} search")
+        except (RequestException, HTTPError) as e:
+            logger.exception("Failed to fetch search results: %s", str(e))
+            return None
+        except Timeout:
+            logger.error("Request timed out")
+            return None
+        except ValueError as e:
+            logger.error("Invalid URL or site: %s", str(e))
             return None
 
 

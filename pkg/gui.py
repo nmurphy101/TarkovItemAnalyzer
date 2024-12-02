@@ -28,9 +28,16 @@ from logger_config import logger
 
 
 if os.path.exists("settings.json"):
-    with open("settings.json") as settings_file:
-        settings = json.load(settings_file)
-        pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
+    try:
+        with open("settings.json") as settings_file:
+            settings = json.load(settings_file)
+            pytesseract.pytesseract.tesseract_cmd = settings.get(
+                "tesseract_path",
+                r"D:\Program Files\Tesseract-OCR\tesseract.exe"
+            )
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error(f"Failed to load settings: {e}")
+        settings = {}
 
 
 class App:
@@ -377,10 +384,19 @@ class SettingsMenu(OtherFrame):
         self.save_btn = Tk.Button(self, text="Save", command=self.save_settings)
         self.save_btn.grid(row=4, column=0, columnspan=2, sticky=W+E+N)
 
-    def update_settings(self, settings) -> None:
-        # Update the settings from the text box
-        pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
-        logger.setLevel(settings.get("debug_level", "INFO"))
+    def update_settings(self, settings: dict) -> None:
+        """Update application settings with validation."""
+        with threading.Lock():  # Add a class-level lock
+            tesseract_path = settings.get("tesseract_path")
+            if tesseract_path and not os.path.isfile(tesseract_path):
+                raise ValueError(f"Invalid Tesseract path: {tesseract_path}")
+                
+            debug_level = settings.get("debug_level", "INFO")
+            if debug_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+                raise ValueError(f"Invalid debug level: {debug_level}")
+                
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            logger.setLevel(debug_level)
 
     def load_settings(self) -> None:
         # Check if the settings file exists

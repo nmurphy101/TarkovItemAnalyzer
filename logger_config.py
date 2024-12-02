@@ -9,16 +9,16 @@ class ImmediateFlushHandler(logging.StreamHandler):
         try:
             super().emit(record)
             self.flush()
-        except Exception:
-            pass
+        except Exception as e:
+            self.handleError(record)
 
 class ImmediateFlushRotatingFileHandler(logging.handlers.RotatingFileHandler):
     def emit(self, record):
         try:
             super().emit(record)
             self.flush()
-        except Exception:
-            pass
+        except Exception as e:
+            self.handleError(record)
 
 if os.path.exists("settings.json"):
     with open("settings.json", "r") as settings_file:

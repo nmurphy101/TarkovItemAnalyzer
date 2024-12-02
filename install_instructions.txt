@@ -1,8 +1,8 @@
 
 development-only instructions:
-  1. Install tesseract-ocr via windows installer exe for either 32bit or 64bit to C:\Program Files\Tesseract-OCR
+  1. Install tesseract-ocr via Windows installer exe for either 32bit or 64bit to C:\Program Files\Tesseract-OCR
     - Note: Tesseract installs from https://github.com/UB-Mannheim/tesseract/wiki
-    - Installer files are already included in this repositiory though for convience
-  2. Replace the eng.traineddata file from this projects tessdata to C:\Program Files\Tesseract-OCR\tessdata or wherever you have Tesseract installed
+    - Installer files are available in the 'installers' directory of this repository for convenience
+  2. Replace the eng.traineddata file from this project's tessdata to C:\Program Files\Tesseract-OCR\tessdata or wherever you have Tesseract installed
   3. Install the following python pip packages:
-    - ```pip install requirements.txt```
+    - ```pip install -r requirements.txt```

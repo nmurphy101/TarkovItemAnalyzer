@@ -27,7 +27,9 @@ from bs4 import BeautifulSoup
 from cv2.typing import MatLike
 from ctypes import byref, c_long, Structure, windll
 from multiprocessing import Lock, Process, Queue
+from multiprocessing.synchronize import Lock as LockType
 from PIL import Image, ImageGrab
+from requests import Response
 # pylint: disable=no-name-in-module, method-hidden
 from win32gui import GetForegroundWindow, GetWindowText
 # pylint: enable=no-name-in-module
@@ -45,8 +47,8 @@ class ProcessManager(threading.Thread):
     Communicates with the GUI via a queue.
     Recieves instructions from the GUI via a different queue.
     '''
-    def __init__(self, gui_queue, command_queue):
-        super(ProcessManager, self).__init__(name="ProcessManagerThread")
+    def __init__(self, gui_queue: Queue, command_queue: Queue):
+        super().__init__(name="ProcessManagerThread")
         self.daemon = True
         self.need_quit = False
         # Setup the queues for the workers
@@ -70,7 +72,7 @@ class ProcessManager(threading.Thread):
             "h": 120,  # height for the Tk root
         }
 
-    def run(self):
+    def run(self) -> None:
         self.need_quit = False
         self.listen = True
         # Make the workers and start them up
@@ -81,7 +83,7 @@ class ProcessManager(threading.Thread):
 
         self.capture_screenshots()
 
-    def capture_screenshots(self):
+    def capture_screenshots(self) -> None:
         # Register the keyboard event once
         keyboard.on_press_key(key="f", callback=self.on_release)
 
@@ -99,7 +101,7 @@ class ProcessManager(threading.Thread):
                 logger.error(f"Error capturing screenshot: {e}")
                 break
 
-    def quit(self):
+    def quit(self) -> None:
         logger.info("Stopping")
         self.listen = False
         self.need_quit = True
@@ -114,10 +116,7 @@ class ProcessManager(threading.Thread):
         # Stop the ProcessManager
         self.join()
 
-    def on_press(self, e):
-        keyboard.on_release_key(key="f", callback=self.on_release)
-
-    def on_release(self, e):
+    def on_release(self, _) -> None:
         if self.listen_lock or self.need_quit:
             return
 
@@ -145,7 +144,7 @@ class ProcessManager(threading.Thread):
         # Add this instance to the process queue and run it with a pool worker
         self.process_queue.put(MessageFunc(self.img, mouse_position, display_info, self.gui_queue))
 
-    def popup_error(self, lock, err_msg):
+    def popup_error(self, lock: LockType, err_msg: str) -> None:
         # Make the popup string message
         popup_str = f"ERROR: {err_msg}"
 
@@ -161,13 +160,13 @@ class Worker(Process):
 
     Does stuff it's told to do in the queue.
     '''
-    def __init__(self, queue, lock, name="WorkerProcess"):
-        super(Worker, self).__init__(name=name)
+    def __init__(self, queue: Queue, lock: LockType, name: str = "WorkerProcess"):
+        super().__init__(name=name)
         self.daemon = True
         self.queue = queue
         self.lock = lock
 
-    def run(self):
+    def run(self) -> None:
         # Worker Loop
         while True:
             process = self.queue.get()
@@ -185,7 +184,7 @@ class MessageFunc():
     the item name box popup appears when mouse hovering the item in inventory/stash,
     and popups the item's market price and item quest information if it exists.
     '''
-    def __init__(self, img, mouse_pos, display_info_init, gui_queue):
+    def __init__(self, img: Image, mouse_pos: dict, display_info_init: dict[str, int], gui_queue: Queue):
         self.need_quit = False
         self.img = img
         self.mouse_pos = mouse_pos
@@ -201,7 +200,7 @@ class MessageFunc():
         }
         self.debug_mode = logger_levels[logger.level]
 
-    def run(self, lock):
+    def run(self, lock: LockType) -> None:
         while not self.need_quit:
             # Temp files for the images to be worked with
             temp_files = self.create_temp_files()
@@ -283,10 +282,10 @@ class MessageFunc():
                         break
 
                     if self.debug_mode >= 1:
-                        logger.info(corrected_text, " to correct ", true_name)
+                        logger.info(f"{corrected_text} to correct {true_name}")
 
                     URL = self.get_item_url(corrected_text, "market")
-                    page, page2 = self.fetch_pages(URL, true_name)
+                    page, page2 = self.fetch_pages(URL, true_name, corrected_text)
 
                     if not page or not page2:
                         main_try_attempt += 1
@@ -300,7 +299,7 @@ class MessageFunc():
                     display_info = self.parse_pages(page, page2, true_name)
 
                     if self.debug_mode >= 1:
-                        logger.info("PARSED INFO: ", display_info["itemLastLowSoldPrice"], display_info["item24hrAvgPrice"], display_info["traderName"], display_info["itemTraderPrice"], "\n", display_info["quests"])
+                        logger.info(f"PARSED INFO: {display_info["itemLastLowSoldPrice"]}, {display_info["item24hrAvgPrice"]}, {display_info["traderName"]}, {display_info["itemTraderPrice"]}, \n {display_info["quests"]}")
 
                     # Popup display information/position dictionary
                     display_info.update(self.display_info_init)
@@ -315,7 +314,7 @@ class MessageFunc():
 
             except Exception as error:
                 if self.debug_mode >= 1:
-                    logger.info("An Unknown Error Occured: ", error)
+                    logger.info(f"An Unknown Error Occured: {error}")
 
                 self.popup_error(lock, "Error, please try again")
                 # Stop the runloop for this process
@@ -328,15 +327,13 @@ class MessageFunc():
         NOTE: the two images must have the same dimension
         '''
         if imageA.shape != imageB.shape:
-            raise ValueError("Input images must have the same dimensions")
+            raise ValueError("Input images must have the same dimensions.")
         
-        # Calculate the mean squared error using NumPy's built-in functions
-        err = np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
-        
-        # Return the MSE, the lower the error, the more "similar" the two images are
-        return err
+        # Calculate the mean squared error using NumPy's built-in functions and
+        # Return the MSE, the lower the error, the more "similar" the two images are.
+        return np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
 
-    def popup_error(self, lock, err_msg):
+    def popup_error(self, lock: LockType, err_msg: str) -> None:
         # Make the popup string message
         popup_str = f"ERROR: {err_msg}"
 
@@ -345,31 +342,31 @@ class MessageFunc():
             self.gui_queue.put([popup_str, self.display_info_init])
 
     def create_temp_files(self):
-        return (
-            "temp_" + next(tempfile._get_candidate_names()) + ".png",
-            "temp_" + next(tempfile._get_candidate_names()) + ".png",
-            "temp_" + next(tempfile._get_candidate_names()) + ".png"
-        )
+        temp_files = []
+        for _ in range(3):
+            temp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            temp_files.append(temp.name)
+            temp.close()
+        return tuple(temp_files)
     
-    def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True):
+    def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True) -> None:
         logger.info(message)
         cv2.imshow(title, image)
         if use_waitkey:
             cv2.waitKey(0)
 
-    def determine_inventory(self, diff_num):
+    def determine_inventory(self, diff_num: int) -> bool:
         if self.debug_mode >= 1:
-            logger.debug("Diff: ", diff_num)
+            logger.debug(f"Diff: {diff_num}")
         if diff_num < 2000:
             if self.debug_mode:
                 logger.info("Inventory screenshot")
             return True
-        else:
-            if self.debug_mode >= 1:
-                logger.info("In raid screenshot")
-            return False
+        if self.debug_mode >= 1:
+            logger.info("In raid screenshot")
+        return False
         
-    def get_search_areas(self, inventory):
+    def get_search_areas(self, inventory: bool) -> tuple:
         if inventory:
             return (
                 (self.mouse_pos["x"] - 16, self.mouse_pos["y"] - 42, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
@@ -382,16 +379,16 @@ class MessageFunc():
                 ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
             )
     
-    def extract_text(self, image):
+    def extract_text(self, image: MatLike) -> tuple[str, MatLike]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
         return pytesseract.image_to_string(threshold, lang="eng", config="--psm 6"), threshold
 
-    def clean_text(self, text):
+    def clean_text(self, text: str) -> list:
         wordlist = text.strip().split()
         
         if self.debug_mode >= 1:
-            logger.info(wordlist, wordlist[len(wordlist)-1])
+            logger.info(f"{wordlist} {wordlist[len(wordlist)-1]}")
 
         new_wordlist = []
         for word in wordlist:
@@ -399,7 +396,7 @@ class MessageFunc():
                 new_wordlist.append(word.strip(r"[-'”\".`@_!#$%^&*<>?/\}{~:]"))
         return new_wordlist
 
-    def process_image(self, attempt, temp_files, is_inventory):
+    def process_image(self, attempt: int, temp_files: tuple, is_inventory: bool) -> MatLike | None:
         if attempt == 1:
             image1 = cv2.imread(temp_files[1])
             image2 = cv2.imread(temp_files[2])
@@ -428,7 +425,7 @@ class MessageFunc():
             for c in cnts:
                 ## For testing draw the contours
                 peri = cv2.arcLength(c, True)
-                approx = cv2.approxPolyDP(c, 0.03 * peri, True)
+                approx = cv2.approxPolyDP(curve=c, epsilon=0.03 * peri, closed=True)
                 cv2.drawContours(image, [approx], -1, (0, 255, 0), 2)
 
                 # Crop the image to the contour
@@ -468,14 +465,14 @@ class MessageFunc():
 
         return image
     
-    def validate_wordlist(self, wordlist):
+    def validate_wordlist(self, wordlist: list) -> bool:
         if len(wordlist) == 0 or (len(wordlist) == 1 and len(wordlist[0]) <= 2):
             return False
         if wordlist[0] == "Body":
             return False
         return True
     
-    def correct_text(self, wordlist):
+    def correct_text(self, wordlist: list) -> str:
         corrected_text = " ".join(wordlist)
 
         if self.debug_mode >= 1:
@@ -488,9 +485,10 @@ class MessageFunc():
             "^['^a-zA-Z_]*$": "%E2%80%98", "RUG": "RDG", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND",
             "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
             "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12", "TOR": "Vector 9x19", "SPLIN": "SPLINT", "DSCRX": "D3CRX", "SSO": "SSD",
-            "((": "(", "))": ")"
+            "((": "(", "))": ")",
+            # Add additional replacements if necessary
         }
-        rep = dict((re.escape(k), v) for k, v in rep.items())
+        rep = {re.escape(k): v for k, v in rep.items()}
         pattern = re.compile("|".join(rep.keys()))
         return pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
 
@@ -504,7 +502,7 @@ class MessageFunc():
                 raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
 
             search_url = f"https://www.google.com/search?q=tarkov+{site}+" + urllib.parse.quote_plus(search_text)
-            page = requests.get(search_url)
+            page = requests.get(search_url, timeout=10)
             page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
 
             soup = BeautifulSoup(page.content, 'html.parser')
@@ -516,18 +514,18 @@ class MessageFunc():
             else:
                 return None
 
-        except Exception as e:
-            logger.error(f"Error: Couldn't get fullname from {site} search: {e}")
+        except requests.RequestException as e:
+            logger.exception(f"Error getting item URL from {site} search")
             return None
 
 
-    def get_item_url(self, search_text: str, site: str):
+    def get_item_url(self, search_text: str, site: str) -> str:
         try:
             if site not in ["market", "wiki"]:
                 raise ValueError("Invalid site. Choose 'market' or 'wiki'.")
 
             search_url = f"https://www.google.com/search?q=tarkov+{site}+" + urllib.parse.quote_plus(search_text)
-            page = requests.get(search_url)
+            page = requests.get(search_url, timeout=10)
             page.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
 
             soup = BeautifulSoup(page.content, 'html.parser')
@@ -546,10 +544,10 @@ class MessageFunc():
             return f"https://google.com{a_list[0]['href']}" if a_list else None
 
         except Exception as e:
-            logger.error(f"Error: Couldn't get item url from {site} search: {e}")
+            logger.exception(f"Error: Couldn't get item url from {site} search: {e}")
             return None
         
-    def fetch_pages(self, URL, true_name):
+    def fetch_pages(self, URL: str, true_name: str, corrected_text: str) -> tuple:
         tryCounter = 1
         tryLimit = 3
         page1 = None
@@ -559,7 +557,7 @@ class MessageFunc():
                 if self.debug_mode >= 1:
                     logger.debug("Tarkov market request Try: ", tryCounter, " ", URL)
 
-                page1 = requests.get(URL)
+                page1 = requests.get(URL, timeout=10)
 
                 if page1.status_code != 200:
                     raise Exception("Error Code: ", page1.status_code)
@@ -567,7 +565,7 @@ class MessageFunc():
                 else:
                     break
 
-            except Exception as e:
+            except requests.RequestException as e:
                 if tryCounter == 1:
                     URL = f"https://tarkov-market.com/item/{corrected_text}".lower().capitalize()
 
@@ -591,14 +589,14 @@ class MessageFunc():
         # Scrape the gamepedia item webpage for more item details
         try:
             URL2 = f"https://escapefromtarkov.gamepedia.com/{true_name}"
-            page2 = requests.get(URL2)
+            page2 = requests.get(URL2, timeout=10)
 
             if page2.status_code != 200:
                 raise Exception("Error Code on gamepedia request: ", page2.status_code)
 
         except Exception as e:
             if self.debug_mode >= 1:
-                logger.error("Unexpected error: ", e, exc_info=True)
+                logger.exception("Unexpected error: ", e, exc_info=True)
 
         if page2 is None or page2.status_code != 200:
             if self.debug_mode >= 1:
@@ -607,7 +605,7 @@ class MessageFunc():
 
         return page1, page2
 
-    def parse_pages(self, page1, page2, true_name):
+    def parse_pages(self, page1: Response, page2: Response, true_name: str) -> dict:
         tm_soup = BeautifulSoup(page1.content, "html.parser")
         gp_soup = BeautifulSoup(page2.content, "html.parser")
 
@@ -651,29 +649,28 @@ class MessageFunc():
             "quests": quests,
         }
 
-    def update_gui(self, lock, display_info):
+    def update_gui(self, lock: LockType, display_info: dict[str, str]) -> None:
         popup_str = ("{}\n\nLast lowest price: {}\n           24hr Avg: {}\n {}: {}\n\n{}".format(
             display_info["itemName"], display_info["itemLastLowSoldPrice"],
             display_info["item24hrAvgPrice"], display_info["traderName"].strip(),
             display_info["itemTraderPrice"].strip(), display_info["quests"]
         ))
 
-        lock.acquire()
-        self.gui_queue.put([popup_str, display_info])
-        lock.release()
+        with lock:
+            self.gui_queue.put([popup_str, display_info])
 
 
 class POINT(Structure):
     _fields_ = [("x", c_long), ("y", c_long)]
 
 
-def queryMouse_position():
+def queryMouse_position() -> dict:
     pt = POINT()
     windll.user32.GetCursorPos(byref(pt))
     return {"x": pt.x, "y": pt.y}
 
 
-def remove_prefix(text, prefix):
+def remove_prefix(text: str, prefix: str) -> str:
     if text.startswith(prefix):
         return text[len(prefix):]
     return text

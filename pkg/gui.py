@@ -14,6 +14,7 @@ import json
 import os
 import queue as q
 import threading
+from collections import deque
 from datetime import datetime as time, timedelta
 
 import psutil
@@ -27,10 +28,9 @@ from logger_config import logger
 
 
 if os.path.exists("settings.json"):
-    with open("settings.json", "r") as settings_file:
+    with open("settings.json") as settings_file:
         settings = json.load(settings_file)
-        tesseract_path = settings.get("tesseract_path", "")
-    pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
+        pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
 
 
 class App:
@@ -64,7 +64,7 @@ class App:
         # Pub messaging
         pub.subscribe(self.listener, "otherFrameClosed")
 
-    def on_close(self):
+    def on_close(self) -> None:
         '''
         dialogue to make sure user wants to quit and sends message into the command queue to 
         quit the app, then destroy the root gui app
@@ -75,19 +75,19 @@ class App:
             # Quit the gui app
             self.root.destroy()
 
-    def listener(self):
+    def listener(self) -> None:
         '''
         pubsub listener - opens main frame when otherFrame closes
         '''
         self.lock_frame(False)
 
-    def hide(self):
+    def hide(self) -> None:
         '''
         hides main frame
         '''
         self.root.withdraw()
 
-    def lock_frame(self, enable):
+    def lock_frame(self, enable) -> None:
         '''
         locks or unlocks the main frame
         '''
@@ -101,14 +101,14 @@ class App:
             except TclError:
                 pass
 
-    def open_frame(self, sub_frame_class):
+    def open_frame(self, sub_frame_class) -> None:
         '''
         opens other frame and hides main frame
         '''
         self.lock_frame(True)
         _ = sub_frame_class()
 
-    def show(self):
+    def show(self) -> None:
         '''
         shows main frame
         '''
@@ -136,7 +136,7 @@ class OtherFrame(Tk.Toplevel):
         self.close_btn = Tk.Button(self, text="Close", command=self.on_close)
         self.close_btn.grid(row=1, column=0, sticky=W+E+N)
 
-    def on_close(self):
+    def on_close(self) -> None:
         '''
         closes the frame and sends a message to the main frame
         '''
@@ -151,6 +151,9 @@ class GUI(App):
 
     main gui app.
     '''
+    
+    MAX_HISTORY_ITEMS = 5
+
     def __init__(self, parent, gui_queue, cmd_queue, title):
         super(GUI, self).__init__(parent, cmd_queue, title)
         # Base Settings
@@ -176,7 +179,7 @@ class GUI(App):
         # History list content
         self.history_frame = Tk.LabelFrame(self.body_frame, text="Item History", padx=5, pady=5)
         self.history_frame.grid(row=2, column=0, columnspan=5, padx=10, pady=10, sticky=E+W+N+S)
-        self.history_item_list = []
+        self.history_items: deque[tuple[Tk.LabelFrame, Label]] = deque(maxlen=self.MAX_HISTORY_ITEMS)
         self.history_frame.rowconfigure(0, weight=1)
         self.history_frame.columnconfigure(0, weight=1)
 
@@ -186,7 +189,7 @@ class GUI(App):
         self.p_manager.start()
         self.menu_frame.after(100, self.queue_loop)
 
-    def queue_loop(self):
+    def queue_loop(self) -> None:
         '''
         starts the thread for poping a message
         '''
@@ -194,7 +197,7 @@ class GUI(App):
         thread.start()
         self.check_status(thread)
 
-    def check_status(self, thread):
+    def check_status(self, thread) -> None:
         '''
         shows main frame
         '''
@@ -203,7 +206,7 @@ class GUI(App):
         else:
             self.menu_frame.after(500, self.queue_loop)
 
-    def settingsMenulistener(self):
+    def settingsMenulistener(self) -> None:
         '''
         listener for the settings menu
         '''
@@ -211,7 +214,7 @@ class GUI(App):
         self.settings_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
 
-    def restartRequiredListener(self):
+    def restartRequiredListener(self) -> None:
         '''
         listener for the restart required message
         '''
@@ -222,11 +225,11 @@ class GUI(App):
         self.settings_btn.config(state="disabled")
         self.stop_btn.config(state="disabled")
 
-    def start_process_manager(self):
+    def start_process_manager(self) -> None:
         '''
         starts the TIPA manager thread if tarkov is running
         '''
-        if "EscapeFromTarkov.exe" in (p.name() for p in psutil.process_iter()):
+        if self.is_tarkov_running():
             self.p_manager.resumeEvent.set()
             self.settings_btn.config(state="disabled")
             self.start_btn.config(state="disabled")
@@ -237,7 +240,7 @@ class GUI(App):
             self.body_frame.after(self.alive_time-100, lambda: label.destroy())
             self.body_frame.update()
 
-    def stop_process_manager(self):
+    def stop_process_manager(self) -> None:
         '''
         stops the TIPA manager process, and ready's a new manager thread
         '''
@@ -252,7 +255,7 @@ class GUI(App):
             self.body_frame.after(self.alive_time-100, lambda: label.destroy())
             self.body_frame.update()
 
-    def popup(self):
+    def popup(self) -> None:
         '''
         Pops a message overlay on the screen if one exists in the queue.
         '''
@@ -294,7 +297,7 @@ class GUI(App):
             self.body_frame.after(self.alive_time-100, lambda: label.destroy())
             self.body_frame.update()
 
-    def add_to_history(self, message_item):
+    def add_to_history(self, message_item) -> None:
         '''
         adds a message to the main apps window that doesn't expire like the popup
         '''
@@ -302,24 +305,31 @@ class GUI(App):
         logger.debug(f"Adding to history: {msg}")
 
         # Clear previous history items
-        for item_frame, label in self.history_item_list:
+        for item_frame, label in self.history_items:
             item_frame.forget()
             label.forget()
 
         # Create new history item
         item_frame = Tk.LabelFrame(self.history_frame, text="", padx=2, pady=2)
         label = Label(item_frame, text=str("\n"+msg))
-        self.history_item_list.insert(0, (item_frame, label))
-        
-        # Keep only the latest 5 history items
-        self.history_item_list = self.history_item_list[:5]
+        self.history_items.appendleft((item_frame, label))
 
         # Update the history display
-        for idx, (item_frame, label) in enumerate(self.history_item_list):
+        for idx, (item_frame, label) in enumerate(self.history_items):
             item_frame.grid(row=idx, column=0, sticky=E+W)
             label.grid(row=0, column=0)
 
         logger.debug("--Updated History--")
+
+    def is_tarkov_running(self) -> bool:
+        try:
+            return any(
+                p.name().lower() == "escapefromtarkov.exe"
+                for p in psutil.process_iter(['name'])
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            logger.warning("Failed to properly check if Tarkov is running")
+            return False
 
 
 class SettingsMenu(OtherFrame):
@@ -365,15 +375,15 @@ class SettingsMenu(OtherFrame):
         self.save_btn = Tk.Button(self, text="Save", command=self.save_settings)
         self.save_btn.grid(row=4, column=0, columnspan=2, sticky=W+E+N)
 
-    def update_settings(self, settings):
+    def update_settings(self, settings) -> None:
         # Update the settings from the text box
         pytesseract.pytesseract.tesseract_cmd = settings.get("tesseract_path", r"D:\Program Files\Tesseract-OCR\tesseract.exe")
         logger.setLevel(settings.get("debug_level", "INFO"))
 
-    def load_settings(self):
+    def load_settings(self) -> None:
         # Check if the settings file exists
         if os.path.exists("settings.json"):
-            with open("settings.json", "r") as settings_file:
+            with open("settings.json") as settings_file:
                 settings = json.load(settings_file)
                 tesseract_path = settings.get("tesseract_path", "")
                 self.tesseract_path_entry.insert(0, tesseract_path)
@@ -382,7 +392,7 @@ class SettingsMenu(OtherFrame):
 
         self.update_settings(settings)
 
-    def save_settings(self):
+    def save_settings(self) -> None:
         # Get the form values
         tesseract_path = self.tesseract_path_entry.get()
         debug_level = self.debug_level_var.get()
@@ -390,7 +400,7 @@ class SettingsMenu(OtherFrame):
         # Create a dictionary to hold the settings
         settings = {
             "tesseract_path": tesseract_path,
-            "debug_level": debug_level
+            "debug_level": debug_level,
         }
 
         # Load the settings from the JSON file
@@ -414,7 +424,7 @@ class SettingsMenu(OtherFrame):
         else:
             messagebox.showinfo("Settings", "Settings saved successfully!")
 
-    def on_close(self):
+    def on_close(self) -> None:
         super().on_close()
         if self.restart_required:
             pub.sendMessage("RestartRequired")

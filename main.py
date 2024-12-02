@@ -15,19 +15,17 @@
 __author__ = "Nicholas Murphy"
 __version__ = '1.0.0-alpha'
 
-import gc
 from tkinter import Tk
 from multiprocessing import Manager
 from multiprocessing import freeze_support
 from pkg.gui import GUI
 from logger_config import logger
 
-gc.enable()
 
 freeze_support()
 
 
-def main():
+def main() -> None:
         
         logger.info("Starting Tarkov Item Analyzer")
     
@@ -42,7 +40,7 @@ def main():
         root.update() # This is the workaround
 
         # Run the gui
-        GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
+        _ = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
 
         # End of the main app.
         root.mainloop()

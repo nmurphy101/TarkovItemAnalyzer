@@ -74,6 +74,14 @@
    "value": "C:/program_projects/Tarkov_Item_Analyzer/LICENSE;."
   },
   {
+    "optionDest": "datas",
+    "value": "C:/program_projects/Tarkov_Item_Analyzer/settings.json;."
+   },
+   {
+    "optionDest": "datas",
+    "value": "C:/program_projects/Tarkov_Item_Analyzer/logger_config.py;."
+   },
+  {
    "optionDest": "hiddenimports",
    "value": "pynput"
   },

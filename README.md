@@ -6,16 +6,16 @@ Tarkov Item Analyzer (TIA) allows you to know the price, and other information, 
 
 # How to run
 
-Follow the install_instructions.txt foor development
+Follow the install_instructions.txt for development
 
 Else just use a current release:
-install tesseract via one of the installers in the installers directory.
-Run tarkov
-Run the tarkov_item_analyzer.exe
-With the app open press "stop" open the settings and set the path to tesseract.exe on your computer and press "save"
-close the settings and press "start"
-Start playing Tarkov as normal
-press the "stop" button to stop the analyzer from watching for the "f" inspect button press
+- Install tesseract via one of the installers in the installers directory.
+- Run tarkov
+- Run the tarkov_item_analyzer.exe
+- With the app open press "stop" open the settings and set the path to tesseract.exe on your computer and press "save"
+- Close the settings and press "start"
+- Start playing Tarkov as normal
+- Press the "stop" button to stop the analyzer from watching for the "f" inspect button press
 
 # How to use
 

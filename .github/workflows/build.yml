@@ -59,7 +59,7 @@ jobs:
           Compress-Archive -Path dist/main/* -DestinationPath tarkov_item_analyzer_windows.zip
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: tarkov_item_analyzer_windows_${{ needs.main.outputs.tag_name }}.zip
           path: tarkov_item_analyzer_windows.zip
@@ -100,7 +100,7 @@ jobs:
           zip -vr tarkov_item_analyzer_mac.zip dist/main
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: tarkov_item_analyzer_mac_${{ needs.main.outputs.tag_name }}.zip
           path: tarkov_item_analyzer_mac.zip

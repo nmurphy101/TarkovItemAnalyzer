@@ -75,7 +75,7 @@ class App:
 
     def on_close(self) -> None:
         '''
-        dialogue to make sure user wants to quit and sends message into the command queue to 
+        dialogue to make sure user wants to quit and sends message into the command queue to
         quit the app, then destroy the root gui app
         '''
         if messagebox.askokcancel("Quit", "Do you want to quit?"):
@@ -160,7 +160,7 @@ class GUI(App):
 
     main gui app.
     '''
-    
+
     MAX_HISTORY_ITEMS = 5
 
     def __init__(self, parent: Tk, gui_queue: Queue, cmd_queue: Queue, title: str) -> None:
@@ -293,7 +293,7 @@ class GUI(App):
             self.since_last_popup = datetime.now()
 
             logger.debug("--Displayed popup--")
-        
+
         elif message_item and "ERROR" in message_item[0]:
             self.display_body_message(message_item[0])
 
@@ -308,7 +308,7 @@ class GUI(App):
         self.body_frame.after(display_time-100, lambda: label.destroy())
         self.body_frame.update()
 
-    def add_to_history(self, message_item: dict[str, dict[str, str]] ) -> None:
+    def add_to_history(self, message_item: dict[str, dict[str, str]]) -> None:
         '''
         adds a message to the main apps window that doesn't expire like the popup
         '''
@@ -352,7 +352,7 @@ class SettingsMenu(OtherFrame):
     '''
 
     TITLE = "Settings"
-    
+
     def __init__(self) -> None:
         super().__init__(SettingsMenu.TITLE)
 
@@ -388,19 +388,27 @@ class SettingsMenu(OtherFrame):
         self.save_btn = Tk.Button(self, text="Save", command=self.save_settings)
         self.save_btn.grid(row=4, column=0, columnspan=2, sticky=W+E+N)
 
-    def update_settings(self, settings: dict) -> None:
+    def update_settings(self, settings: dict) -> bool:
         """Update application settings with validation."""
         with Lock():  # Add a class-level lock
             tesseract_path = settings.get("tesseract_path")
             if tesseract_path and not os.path.isfile(tesseract_path):
-                raise ValueError(f"Invalid Tesseract path: {tesseract_path}")
-                
+                messagebox.showinfo("Save Failed", f"Invalid Tesseract path: {tesseract_path}")
+                return False
+
             debug_level = settings.get("debug_level", "INFO")
             if debug_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-                raise ValueError(f"Invalid debug level: {debug_level}")
-                
+                messagebox.showinfo("Save Failed", f"Invalid debug level: {debug_level}")
+                return False
+
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
             logger.setLevel(debug_level)
+
+            # Save the updated settings to the JSON file
+            with open("_internal/settings.json", "w") as settings_file:
+                json.dump(settings, settings_file, indent=4)
+
+            return True
 
     def load_settings(self) -> None:
         # Check if the settings file exists
@@ -433,15 +441,15 @@ class SettingsMenu(OtherFrame):
         else:
             old_tesseract_path = ""
 
-        # Save the updated settings to the JSON file
-        with open("_internal/settings.json", "w") as settings_file:
-            json.dump(settings, settings_file, indent=4)
-
-        self.update_settings(settings)
+        if not self.update_settings(settings):
+            return
 
         # Optionally, show a message box to confirm the save
         if tesseract_path != old_tesseract_path:
-            messagebox.showinfo("Settings", "Settings saved successfully!\nPlease restart the application to apply the changes.")
+            messagebox.showinfo("Settings", """
+                Settings saved successfully!
+                Please restart the application to apply the changes.
+            """)
             self.restart_required = True
         else:
             messagebox.showinfo("Settings", "Settings saved successfully!")

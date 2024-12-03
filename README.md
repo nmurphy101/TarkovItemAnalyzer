@@ -2,17 +2,18 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/nmurphy101/tarkovitemanalyzer/badge)](https://www.codefactor.io/repository/github/nmurphy101/tarkovitemanalyzer) ![Release](https://github.com/nmurphy101/tarkovitemanalyzer/actions/workflows/build.yml/badge.svg?branch=main) ![Build](https://github.com/nmurphy101/tarkovitemanalyzer/actions/workflows/python-app.yml/badge.svg)
 
 # Tarkov_Item_Analyzer
-Tarkov Item Analyzer (TIA) allows you to know the price, and other informatino, of items you pick up on-the-fly!
+Tarkov Item Analyzer (TIA) allows you to know the price, and other information, of items you pick up on-the-fly!
 
 # How to run
 
-Follow the install_instructions.txt
+Follow the install_instructions.txt foor development
 
-Else if a full release exists (and it isn't broken like the first one is):
+Else just use a current release:
+install tesseract via one of the installers in the installers directory.
 Run tarkov
-Use either the single exe file or the ziped directory or run the "python main.py" command directly
-Admin privileges may be needed to start the single exe file or the exe file within the unzipped directory.
-in 2-6sec the gui will open
+Run the tarkov_item_analyzer.exe
+With the app open press "stop" open the settings and set the path to tesseract.exe on your computer and press "save"
+close the settings and press "start"
 Start playing Tarkov as normal
 press the "stop" button to stop the analyzer from watching for the "f" inspect button press
 
@@ -29,13 +30,6 @@ When picking up a loose item in a match with "f" (the default interact/pickup bu
 it'll give you the item information (this takes 2-3sec)
 
 The main app will also display a history of the most recent 5 items you've analyzed.
-
-# Build to Executible
-auto-py-to-exe
-
-pyinstaller --noconfirm --onefile --windowed --clean --add-data "C:/DIR_LOCATION_HERE/Tarkov_Item_Analyzer/pkg;pkg/" --add-data "C:/DIR_LOCATION_HERE/Tarkov_Item_Analyzer/tessdata;tessdata/" --add-data "C:/DIR_LOCATION_HERE/Tarkov_Item_Analyzer/compare_img.png;." --add-data "C:/DIR_LOCATION_HERE/Tarkov_Item_Analyzer/LICENSE;." --hidden-import "pynput" --exclude-module "pytest" --hidden-import "time" --hidden-import "sys" --hidden-import "re" --hidden-import "resource" --hidden-import "termios" --hidden-import "pyimod03_importers" --hidden-import "multiprocessing.Manager" --hidden-import "multiprocessing.Lock" --hidden-import "multiprocessing.Process" --hidden-import "multiprocessing.Queue" --hidden-import "multiprocessing.cpu_count" --hidden-import "multiprocessing.Pool" --hidden-import "tornado" --hidden-import "itertools" --paths "C:\Windows\System32\downlevel" --hidden-import "pynput._util" --hidden-import "pynput.keyboard"  "C:/DIR_LOCATION_HERE/Tarkov_Item_Analyzer/main.py"
-
-
 
 # Limitations
 - Not all items will work as I haven't tested for every one of them.

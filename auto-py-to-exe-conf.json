@@ -7,7 +7,7 @@
   },
   {
    "optionDest": "filenames",
-   "value": "C:\\program_projects\\Tarkov_Item_Analyzer\\main.py"
+   "value": "main.py"
   },
   {
    "optionDest": "onefile",
@@ -67,7 +67,7 @@
   },
   {
    "optionDest": "datas",
-   "value": "compare_img.png;."
+   "value": "_internal/compare_img.png;."
   },
   {
    "optionDest": "datas",
@@ -75,7 +75,7 @@
   },
   {
     "optionDest": "datas",
-    "value": "settings.json;."
+    "value": "_internal/settings.json;."
    },
    {
     "optionDest": "datas",

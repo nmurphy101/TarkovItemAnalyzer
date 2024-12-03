@@ -15,7 +15,7 @@ from multiprocessing import Queue
 import os
 import queue as q
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from threading import Thread, Lock
 from typing import Optional
 
@@ -29,9 +29,9 @@ from .TIPA import ProcessManager
 from logger_config import logger
 
 
-if os.path.exists("settings.json"):
+if os.path.exists("_internal/settings.json"):
     try:
-        with open("settings.json") as settings_file:
+        with open("_internal/settings.json") as settings_file:
             settings = json.load(settings_file)
             pytesseract.pytesseract.tesseract_cmd = settings.get(
                 "tesseract_path",
@@ -262,7 +262,7 @@ class GUI(App):
         '''
         Pops a message overlay on the screen if one exists in the queue.
         '''
-        if datetime.now(timezone.utc) > self.since_last_popup + timedelta(seconds=self.alive_time / 1000):
+        if datetime.now() > self.since_last_popup + timedelta(seconds=self.alive_time / 1000):
             try:
                 message_item = self.gui_queue.get(timeout=1)
             except q.Empty:
@@ -353,7 +353,7 @@ class SettingsMenu(OtherFrame):
 
     TITLE = "Settings"
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(SettingsMenu.TITLE)
 
         self.restart_required = False
@@ -404,8 +404,8 @@ class SettingsMenu(OtherFrame):
 
     def load_settings(self) -> None:
         # Check if the settings file exists
-        if os.path.exists("settings.json"):
-            with open("settings.json") as settings_file:
+        if os.path.exists("_internal/settings.json"):
+            with open("_internal/settings.json") as settings_file:
                 settings = json.load(settings_file)
                 tesseract_path = settings.get("tesseract_path", "")
                 self.tesseract_path_entry.insert(0, tesseract_path)
@@ -426,15 +426,15 @@ class SettingsMenu(OtherFrame):
         }
 
         # Load the settings from the JSON file
-        if os.path.exists("settings.json"):
-            with open("settings.json", "r") as settings_file:
+        if os.path.exists("_internal/settings.json"):
+            with open("_internal/settings.json", "r") as settings_file:
                 old_settings = json.load(settings_file)
                 old_tesseract_path = old_settings.get("tesseract_path", "")
         else:
             old_tesseract_path = ""
 
         # Save the updated settings to the JSON file
-        with open("settings.json", "w") as settings_file:
+        with open("_internal/settings.json", "w") as settings_file:
             json.dump(settings, settings_file, indent=4)
 
         self.update_settings(settings)

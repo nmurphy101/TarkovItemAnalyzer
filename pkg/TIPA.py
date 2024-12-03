@@ -231,7 +231,7 @@ class MessageFunc():
             check_img.save(temp_files[0], dpi=(5000, 5000))
             check_img = cv2.imread(temp_files[0])
             os.remove(temp_files[0])
-            compare_img = cv2.imread("compare_img.png")
+            compare_img = cv2.imread("_internal/compare_img.png")
 
             if self.debug_mode >= 2:
                 self.show_image(compare_img, "compare_img", "Showing eyewear inventory text expected image")
@@ -400,12 +400,12 @@ class MessageFunc():
                 (self.mouse_pos["x"] - 16, self.mouse_pos["y"] - 42, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
                 (self.mouse_pos["x"] - 400, self.mouse_pos["y"] - 65, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10)
             )
-        else:
-            width, height = self.img.size
-            return (
-                ((width / 2) - 39, (height / 2) + 42, (width / 2) + 40, (height / 2) + 57),
-                ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
-            )
+        
+        width, height = self.img.size
+        return (
+            ((width / 2) - 39, (height / 2) + 42, (width / 2) + 40, (height / 2) + 57),
+            ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
+        )
     
     def extract_text(self, image: MatLike) -> tuple[str, MatLike]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

@@ -22,8 +22,8 @@ class ImmediateFlushRotatingFileHandler(logging.handlers.RotatingFileHandler):
         except Exception as e:
             self.handleError(record)
 
-if os.path.exists("settings.json"):
-    with open("settings.json") as settings_file:
+if os.path.exists("_internal/settings.json"):
+    with open("_internal/settings.json") as settings_file:
         settings = json.load(settings_file)
         debug_level = settings.get("debug_level", "INFO")
 

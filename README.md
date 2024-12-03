@@ -1,3 +1,6 @@
+# Status
+[![CodeFactor](https://www.codefactor.io/repository/github/nmurphy101/tarkovitemanalyzer/badge)](https://www.codefactor.io/repository/github/nmurphy101/tarkovitemanalyzer) ![Release](https://github.com/nmurphy101/tarkovitemanalyzer/actions/workflows/build.yml/badge.svg?branch=main) ![Build](https://github.com/nmurphy101/tarkovitemanalyzer/actions/workflows/python-app.yml/badge.svg)
+
 # Tarkov_Item_Analyzer
 Tarkov Item Analyzer (TIA) allows you to know the price, and other informatino, of items you pick up on-the-fly!
 

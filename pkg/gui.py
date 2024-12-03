@@ -11,11 +11,13 @@
 '''
 
 import json
+from multiprocessing import Queue
 import os
 import queue as q
-import threading
 from collections import deque
-from datetime import datetime as time, timedelta
+from datetime import datetime, timedelta, timezone
+from threading import Thread, Lock
+from typing import Optional
 
 import psutil
 import pytesseract
@@ -33,7 +35,7 @@ if os.path.exists("settings.json"):
             settings = json.load(settings_file)
             pytesseract.pytesseract.tesseract_cmd = settings.get(
                 "tesseract_path",
-                r"D:\Program Files\Tesseract-OCR\tesseract.exe"
+                r"D:\Program Files\Tesseract-OCR\tesseract.exe",
             )
     except (json.JSONDecodeError, OSError) as e:
         logger.error(f"Failed to load settings: {e}")
@@ -47,7 +49,7 @@ class App:
 
     Gui for the Application.
     '''
-    def __init__(self, parent, cmd_queue, title):
+    def __init__(self, parent: Tk, cmd_queue: Queue, title: str):
         self.cmd_queue = cmd_queue
         # Root app
         self.root = parent
@@ -94,7 +96,7 @@ class App:
         '''
         self.root.withdraw()
 
-    def lock_frame(self, enable) -> None:
+    def lock_frame(self, enable: bool) -> None:
         '''
         locks or unlocks the main frame
         '''
@@ -108,7 +110,7 @@ class App:
             except TclError:
                 pass
 
-    def open_frame(self, sub_frame_class) -> None:
+    def open_frame(self, sub_frame_class: Tk.Toplevel) -> None:
         '''
         opens other frame and hides main frame
         '''
@@ -130,8 +132,8 @@ class OtherFrame(Tk.Toplevel):
 
     extra menu.
     '''
-    def __init__(self, title):
-        super(OtherFrame, self).__init__()
+    def __init__(self, title: str) -> None:
+        super().__init__()
         self.geometry("400x300")
         self.title(title)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -161,13 +163,13 @@ class GUI(App):
     
     MAX_HISTORY_ITEMS = 5
 
-    def __init__(self, parent, gui_queue, cmd_queue, title):
-        super(GUI, self).__init__(parent, cmd_queue, title)
+    def __init__(self, parent: Tk, gui_queue: Queue, cmd_queue: Queue, title: str) -> None:
+        super().__init__(parent, cmd_queue, title)
         # Base Settings
         parent.minsize(300, 90)
         parent.maxsize(1000, 800)
         self.alive_time = 6000
-        self.since_last_popup = time.now()
+        self.since_last_popup = datetime.now()
         self.gui_queue = gui_queue
         self.p_manager = ProcessManager(self.gui_queue, self.cmd_queue)
         self.popup_widget = Toplevel()
@@ -200,11 +202,11 @@ class GUI(App):
         '''
         starts the thread for poping a message
         '''
-        thread = threading.Thread(target=self.popup)
+        thread = Thread(target=self.popup)
         thread.start()
         self.check_status(thread)
 
-    def check_status(self, thread) -> None:
+    def check_status(self, thread: Thread) -> None:
         '''
         shows main frame
         '''
@@ -260,7 +262,7 @@ class GUI(App):
         '''
         Pops a message overlay on the screen if one exists in the queue.
         '''
-        if time.now() > self.since_last_popup + timedelta(seconds=self.alive_time / 1000):
+        if datetime.now(timezone.utc) > self.since_last_popup + timedelta(seconds=self.alive_time / 1000):
             try:
                 message_item = self.gui_queue.get(timeout=1)
             except q.Empty:
@@ -288,14 +290,14 @@ class GUI(App):
             self.popup_widget.after(self.alive_time, self.popup_widget.withdraw)
             self.popup_widget.after(self.alive_time - 100, label.destroy)
 
-            self.since_last_popup = time.now()
+            self.since_last_popup = datetime.now()
 
             logger.debug("--Displayed popup--")
         
         elif message_item and "ERROR" in message_item[0]:
             self.display_body_message(message_item[0])
 
-    def display_body_message(self, message: str, display_time: int = None) -> None:
+    def display_body_message(self, message: str, display_time: Optional[int] = None) -> None:
         '''
         displays a message in the main body of the app
         '''
@@ -306,7 +308,7 @@ class GUI(App):
         self.body_frame.after(display_time-100, lambda: label.destroy())
         self.body_frame.update()
 
-    def add_to_history(self, message_item) -> None:
+    def add_to_history(self, message_item: dict[str, dict[str, str]] ) -> None:
         '''
         adds a message to the main apps window that doesn't expire like the popup
         '''
@@ -348,9 +350,11 @@ class SettingsMenu(OtherFrame):
 
     Gui frame for selecting settings.
     '''
+
     TITLE = "Settings"
+    
     def __init__(self):
-        super(SettingsMenu, self).__init__(SettingsMenu.TITLE)
+        super().__init__(SettingsMenu.TITLE)
 
         self.restart_required = False
 
@@ -386,7 +390,7 @@ class SettingsMenu(OtherFrame):
 
     def update_settings(self, settings: dict) -> None:
         """Update application settings with validation."""
-        with threading.Lock():  # Add a class-level lock
+        with Lock():  # Add a class-level lock
             tesseract_path = settings.get("tesseract_path")
             if tesseract_path and not os.path.isfile(tesseract_path):
                 raise ValueError(f"Invalid Tesseract path: {tesseract_path}")

@@ -164,7 +164,7 @@ class Worker(Process):
 
     Does stuff it's told to do in the queue.
     '''
-    def __init__(self, queue: Queue, lock: LockType, name: str = "WorkerProcess"):
+    def __init__(self, queue: Queue, lock: LockType, name: str = "WorkerProcess") -> None:
         super().__init__(name=name)
         self.daemon = True
         self.queue = queue

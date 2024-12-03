@@ -3,9 +3,11 @@ import logging
 import logging.config
 import logging.handlers
 import os
+from logging import LogRecord
+
 
 class ImmediateFlushHandler(logging.StreamHandler):
-    def emit(self, record):
+    def emit(self, record: LogRecord) -> None:
         try:
             super().emit(record)
             self.flush()
@@ -13,7 +15,7 @@ class ImmediateFlushHandler(logging.StreamHandler):
             self.handleError(record)
 
 class ImmediateFlushRotatingFileHandler(logging.handlers.RotatingFileHandler):
-    def emit(self, record):
+    def emit(self, record: LogRecord) -> None:
         try:
             super().emit(record)
             self.flush()
@@ -36,22 +38,22 @@ logging.config.dictConfig({
             "maxBytes": 100000,              # Maximum size of a log file in bytes before rotation
             "backupCount": 3,                # Number of backup files to keep
             "formatter": "simple",           # Refer to the formatter defined below
-            "errors": "replace"
+            "errors": "replace",
         },
         "console": {
             "class": "logger_config.ImmediateFlushHandler",  # Custom handler class for writing logs to the console
             "formatter": "simple",                           # Refer to the formatter defined below
-        }
+        },
     },
     "formatters": {
         "simple": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        }
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        },
     },
     "root": {
         "level": debug_level,
-        "handlers": ["file", "console"]
-    }
+        "handlers": ["file", "console"],
+    },
 })
 
 logger = logging.getLogger()

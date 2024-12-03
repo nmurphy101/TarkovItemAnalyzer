@@ -20,8 +20,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: release
-        uses: DasBen/release-on-push-action@master
+      - name: Release Tag
+        uses: rymndhng/release-on-push-action@v0.28.0
         id: create-release
         with:
           bump_version_scheme: minor

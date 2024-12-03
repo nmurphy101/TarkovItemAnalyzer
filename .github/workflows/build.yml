@@ -11,6 +11,9 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+      tag_name: ${{ steps.create-release.outputs.tag_name }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -31,7 +34,7 @@ jobs:
           echo "Got release version ${{ steps.create-release.outputs.version }}"
 
   build-windows:
-    if: ${{ needs.main.result.create-release.upload_url != '' }}
+    if: ${{ needs.main.outputs.upload_url != '' }}
     runs-on: windows-latest
     needs: main
     steps:

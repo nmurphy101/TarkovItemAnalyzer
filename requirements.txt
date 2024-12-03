@@ -1,0 +1,28 @@
+# Image Processing
+opencv-python==4.9.0.80
+pillow==11.0.0
+numpy==1.26.3
+scipy==1.12.0
+
+# OCR
+pytesseract==0.3.13
+
+# Web and Networking
+requests==2.31.0
+beautifulsoup4==4.12.3
+urllib3==2.2.3
+
+# System Utilities
+psutil==6.1.0
+keyboard==0.13.5  # Consider replacing with pynput
+pywin32==308  # Windows-specific
+
+# Utilities
+Pypubsub==4.0.3
+packaging==24.2
+
+# Indirect Dependencies
+certifi==2024.8.30
+charset-normalizer==3.4.0
+idna==3.10
+soupsieve==2.6

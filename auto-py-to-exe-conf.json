@@ -7,7 +7,7 @@
   },
   {
    "optionDest": "filenames",
-   "value": "C:\\program_projects\\Tarkov_Item_Analyzer\\main.py"
+   "value": "main.py"
   },
   {
    "optionDest": "onefile",
@@ -59,20 +59,28 @@
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/pkg;pkg/"
+   "value": "pkg;pkg/"
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/tessdata;tessdata/"
+   "value": "tessdata;tessdata/"
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/compare_img.png;."
+   "value": "_internal/compare_img.png;."
   },
   {
    "optionDest": "datas",
-   "value": "C:/program_projects/Tarkov_Item_Analyzer/LICENSE;."
+   "value": "LICENSE;."
   },
+  {
+    "optionDest": "datas",
+    "value": "_internal/settings.json;."
+   },
+   {
+    "optionDest": "datas",
+    "value": "logger_config.py;."
+   },
   {
    "optionDest": "hiddenimports",
    "value": "pynput"

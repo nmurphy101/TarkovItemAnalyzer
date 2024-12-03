@@ -19,10 +19,15 @@ from tkinter import Tk
 from multiprocessing import Manager
 from multiprocessing import freeze_support
 from pkg.gui import GUI
+from logger_config import logger
+
 
 freeze_support()
 
-def main():
+
+def main() -> None:
+        
+        logger.info("Starting Tarkov Item Analyzer")
     
         # Gui manager and command manager queues'
         manager = Manager()
@@ -35,13 +40,10 @@ def main():
         root.update() # This is the workaround
 
         # Run the gui
-        gui = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
+        _ = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
 
         # End of the main app.
         root.mainloop()
-        if gui.p_manager.is_alive():
-            gui.p_manager.Close()
-            gui.p_manager.join()
    
 
 if __name__ == "__main__":

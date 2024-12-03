@@ -11,11 +11,9 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
-    outputs: 
+    outputs:
       upload_url: ${{ steps.create-release.outputs.upload_url }}
       tag_name: ${{ steps.create-release.outputs.tag_name }}
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -46,13 +44,16 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run PyInstaller and zip
+        shell: pwsh
         run: |
           python -m PyInstaller main.spec
-          Compress-Archive -Path dist/main/* -Destination tarkov_item_analyzer_windows.zip
-      - uses: actions/upload-artifact@v2
+          Compress-Archive -Path dist/main/* -DestinationPath tarkov_item_analyzer_windows.zip
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
         with:
           name: tarkov_item_analyzer_windows_${{ needs.main.outputs.tag_name }}.zip
-          path: dist/main.zip
+          path: tarkov_item_analyzer_windows.zip
 
       - name: Upload Release Asset
         id: upload-release-asset
@@ -88,10 +89,12 @@ jobs:
         run: |
           python -m PyInstaller main.spec
           zip -vr tarkov_item_analyzer_mac.zip dist/main
-      - uses: actions/upload-artifact@v2
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
         with:
           name: tarkov_item_analyzer_mac_${{ needs.main.outputs.tag_name }}.zip
-          path: dist/main.zip
+          path: tarkov_item_analyzer_mac.zip
 
       - name: Upload Release Asset
         id: upload-release-asset

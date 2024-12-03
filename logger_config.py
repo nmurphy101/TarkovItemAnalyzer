@@ -11,16 +11,18 @@ class ImmediateFlushHandler(logging.StreamHandler):
         try:
             super().emit(record)
             self.flush()
-        except Exception as e:
+        except Exception:
             self.handleError(record)
+
 
 class ImmediateFlushRotatingFileHandler(logging.handlers.RotatingFileHandler):
     def emit(self, record: LogRecord) -> None:
         try:
             super().emit(record)
             self.flush()
-        except Exception as e:
+        except Exception:
             self.handleError(record)
+
 
 if os.path.exists("_internal/settings.json"):
     with open("_internal/settings.json") as settings_file:

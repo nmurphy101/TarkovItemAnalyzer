@@ -239,7 +239,7 @@ class MessageFunc():
 
             diff_num = self.mse(check_img, compare_img)
             is_inventory = self.determine_inventory(diff_num)
-            
+
             search_areas = self.get_search_areas(is_inventory)
             # Save the cropped screen image
             self.img.crop(search_areas[0]).save(temp_files[1], dpi=(500, 500))
@@ -283,7 +283,7 @@ class MessageFunc():
 
                     elif self.debug_mode >= 1:
                         logger.debug(f"Extracted Text: {text}")
-                        
+
                     wordlist = self.clean_text(text)
 
                     if not self.validate_wordlist(wordlist):
@@ -319,7 +319,13 @@ class MessageFunc():
                     display_info = self.parse_pages(page, page2, true_name)
 
                     if self.debug_mode >= 1:
-                        logger.info(f"PARSED INFO: {display_info["itemLastLowSoldPrice"]}, {display_info["item24hrAvgPrice"]}, {display_info["traderName"]}, {display_info["itemTraderPrice"]}, \n {display_info["quests"]}")
+                        logger.info(f"""PARSED INFO:
+                            {display_info["itemLastLowSoldPrice"]},
+                            {display_info["item24hrAvgPrice"]},
+                            {display_info["traderName"]},
+                            {display_info["itemTraderPrice"]},
+                            {display_info["quests"]}
+                        """)
 
                     # Popup display information/position dictionary
                     display_info.update(self.display_info_init)
@@ -348,7 +354,7 @@ class MessageFunc():
         '''
         if imageA.shape != imageB.shape:
             raise ValueError("Input images must have the same dimensions.")
-        
+
         # Calculate the mean squared error using NumPy's built-in functions and
         # Return the MSE, the lower the error, the more "similar" the two images are.
         return np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
@@ -360,7 +366,7 @@ class MessageFunc():
         # Get the multiprocess lock and update the GUI window
         with lock:
             self.gui_queue.put([popup_str, self.display_info_init])
-    
+
     def create_temp_files(self) -> tuple[str, ...]:
         """Create temporary files with proper cleanup."""
         temp_files = []
@@ -372,11 +378,11 @@ class MessageFunc():
                 mode="w+b"
             ) as temp:
                 temp_files.append(temp.name)
-        
+
         # Register cleanup handler
         atexit.register(lambda: [os.unlink(f) for f in temp_files if os.path.exists(f)])
         return tuple(temp_files)
-    
+
     def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True) -> None:
         logger.info(message)
         cv2.imshow(title, image)
@@ -393,20 +399,20 @@ class MessageFunc():
         if self.debug_mode >= 1:
             logger.info("In raid screenshot")
         return False
-        
+
     def get_search_areas(self, inventory: bool) -> tuple:
         if inventory:
             return (
                 (self.mouse_pos["x"] - 16, self.mouse_pos["y"] - 42, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
                 (self.mouse_pos["x"] - 400, self.mouse_pos["y"] - 65, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10)
             )
-        
+
         width, height = self.img.size
         return (
             ((width / 2) - 39, (height / 2) + 42, (width / 2) + 40, (height / 2) + 57),
             ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
         )
-    
+
     def extract_text(self, image: MatLike) -> tuple[str, MatLike]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
@@ -414,7 +420,7 @@ class MessageFunc():
 
     def clean_text(self, text: str) -> list:
         wordlist = text.strip().split()
-        
+
         if self.debug_mode >= 1:
             logger.info(f"{wordlist} {wordlist[len(wordlist)-1]}")
 
@@ -437,7 +443,7 @@ class MessageFunc():
 
         if is_inventory:
             logger.debug("In inventory contour corrector")
-            gray = cv2.cvtColor(image ,cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             edged = cv2.Canny(image, 10, 250)
 
             if self.debug_mode >= 2:
@@ -451,7 +457,7 @@ class MessageFunc():
             areaList = []
             i = 0
             for c in cnts:
-                ## For testing draw the contours
+                # For testing draw the contours
                 peri = cv2.arcLength(c, True)
                 approx = cv2.approxPolyDP(curve=c, epsilon=0.03 * peri, closed=True)
                 cv2.drawContours(image, [approx], -1, (0, 255, 0), 2)
@@ -461,7 +467,7 @@ class MessageFunc():
                 # if w>130 and h<175 and h>95:
                 if w > 66 and w < 1212 and h > 66 and h < 168:
                     idx += 1
-                    new_img = image[y+13:y+h-11,x+11:x+w-11]
+                    new_img = image[y + 13 : y + h - 11, x + 11 : x + w - 11]
                     imagesList.append(new_img)
                     height, width, _ = np.array(new_img).shape
                     area = height * width
@@ -492,14 +498,14 @@ class MessageFunc():
             self.show_image(image, "final_image", "Showing final image")
 
         return image
-    
+
     def validate_wordlist(self, wordlist: list) -> bool:
         if len(wordlist) == 0 or (len(wordlist) == 1 and len(wordlist[0]) <= 2):
             return False
         if wordlist[0] == "Body":
             return False
         return True
-    
+
     def correct_text(self, wordlist: list) -> str:
         corrected_text = " ".join(wordlist)
 
@@ -508,36 +514,38 @@ class MessageFunc():
 
         rep = {
             " ": "+", "$": "", "/": "_", r"[\/\\\n|_]*": "_", "muzzle": "muzzlebrake", "brake": "", "7.6239": "7.62x39",
-            "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(", "sung": "sunglasses",
-            "X/L": "X_L", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f", "away": "", "MK2": "Mk.2", '"Klassika"': "Klassika",
-            "^['^a-zA-Z_]*$": "%E2%80%98", "RUG": "RDG", "AT-2": "AI-2", "®": "", "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND",
-            "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
-            "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12", "TOR": "Vector 9x19", "SPLIN": "SPLINT", "DSCRX": "D3CRX", "SSO": "SSD",
+            "5.5645": "5.56x45", "MPS": "MP5", "MP3": "MP5", "Flash hider": "Flashhider", "]": ")", "[": "(",
+            "sung": "sunglasses", "X/L": "X_L", "Tactlcal": "Tactical", "AK-103-762x39": "", "l-f": "l_f", "away": "",
+            "MK2": "Mk.2", '"Klassika"': "Klassika", "^['^a-zA-Z_]*$": "%E2%80%98", "RUG": "RDG", "AT-2": "AI-2", "®": "",
+            "§": "5", "__": "_", "___": "", "xX": "X", "SORND": "50RND", "XLORUNO-VM": "KORUND-VM", "SURVIZ": "SURV12",
+            "Bastion dust cover for AK": "Bastion_dust_cover_for_%D0%B0%D0%BA", "TOR": "Vector 9x19", "SPLIN": "SPLINT",
+            "DSCRX": "D3CRX", "SSO": "SSD", "PDC dust cover for AK-74": "PDC_dust_cover_for_%D0%B0%D0%BA-74",
             "((": "(", "))": ")",
             # Add additional replacements if necessary
         }
         rep = {re.escape(k): v for k, v in rep.items()}
         pattern = re.compile("|".join(rep.keys()))
-        return pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
-    
+        return pattern.sub(
+            lambda m: rep[re.escape(m.group(0))], corrected_text
+        ).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
+
     def construct_search_url(self, site: str, search_text: str) -> str:
         if not search_text:
             return None
-        
+
         base_urls = {
             'market': 'https://www.google.com/search',
             'wiki': 'https://www.google.com/search'
         }
-        
+
         if site not in base_urls:
             raise ValueError(f"Invalid site: {site}")
-            
+
         params = {
             'q': f'tarkov {site} {search_text}'
         }
-        
-        return f"{base_urls[site]}?{urlencode(params)}"
 
+        return f"{base_urls[site]}?{urlencode(params)}"
 
     def get_full_item_name(self, search_text: str, site: str) -> str:
         if not search_text:
@@ -575,7 +583,6 @@ class MessageFunc():
             logger.error("Invalid URL or site: %s", str(e))
             return None
 
-
     def get_item_url(self, search_text: str, site: str) -> str:
         try:
             if site not in ["market", "wiki"]:
@@ -603,7 +610,7 @@ class MessageFunc():
         except Exception as e:
             logger.exception(f"Error: Couldn't get item url from {site} search: {e}")
             return None
-        
+
     def fetch_pages(self, URL: str, true_name: str, corrected_text: str) -> tuple:
         tryCounter = 1
         tryLimit = 3
@@ -622,7 +629,7 @@ class MessageFunc():
                 else:
                     break
 
-            except requests.RequestException as e:
+            except requests.RequestException:
                 if tryCounter == 1:
                     URL = f"https://tarkov-market.com/item/{corrected_text}".lower().capitalize()
 
@@ -632,7 +639,7 @@ class MessageFunc():
                     URL = f"https://tarkov-market.com/item/{corrected_text}"
 
                 tryCounter = tryCounter + 1
-                
+
         if tryCounter > tryLimit:
             if self.debug_mode >= 1:
                 logger.warning("Try limit reached on tarkov-market page")
@@ -673,15 +680,32 @@ class MessageFunc():
             item_24hr_avg_price = "NA"
 
         try:
-            trader_name = tm_soup.findAll("div", {"class": "bold plus"})[6].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
-            item_trader_price = tm_soup.findAll("div", {"class": "bold plus"})[6].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+            trader_name = tm_soup.findAll(
+                "div", {"class": "bold plus"}
+            )[6].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
+
+            item_trader_price = tm_soup.findAll(
+                "div", {"class": "bold plus"}
+            )[6].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+
         except IndexError:
             try:
-                trader_name = tm_soup.findAll("div", {"class": "bold plus"})[5].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
-                item_trader_price = tm_soup.findAll("div", {"class": "bold plus"})[5].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+                trader_name = tm_soup.findAll(
+                    "div", {"class": "bold plus"}
+                )[5].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
+
+                item_trader_price = tm_soup.findAll(
+                    "div", {"class": "bold plus"}
+                )[5].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+
             except IndexError:
-                trader_name = tm_soup.findAll("div", {"class": "bold plus"})[2].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
-                item_trader_price = tm_soup.findAll("div", {"class": "bold plus"})[2].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
+                trader_name = tm_soup.findAll(
+                    "div", {"class": "bold plus"}
+                )[2].parent.findAll("div", text=re.compile("[a-zA-Z]"))[1].get_text()
+
+                item_trader_price = tm_soup.findAll(
+                    "div", {"class": "bold plus"}
+                )[2].parent.findAll("span", text=re.compile("[0-9]"))[0].get_text()
 
         quests_list_text = []
         quests = ""

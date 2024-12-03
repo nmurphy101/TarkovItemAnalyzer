@@ -26,25 +26,25 @@ freeze_support()
 
 
 def main() -> None:
-        
-        logger.info("Starting Tarkov Item Analyzer")
-    
-        # Gui manager and command manager queues'
-        manager = Manager()
-        gui_queue = manager.Queue()
-        manager2 = Manager()
-        cmd_queue = manager2.Queue()
 
-        # Start the root app
-        root = Tk()
-        root.update() # This is the workaround
+    logger.info("Starting Tarkov Item Analyzer")
 
-        # Run the gui
-        _ = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
+    # Gui manager and command manager queues'
+    manager = Manager()
+    gui_queue = manager.Queue()
+    manager2 = Manager()
+    cmd_queue = manager2.Queue()
 
-        # End of the main app.
-        root.mainloop()
-   
+    # Start the root app
+    root = Tk()
+    root.update()
+
+    # Run the gui
+    _ = GUI(root, gui_queue, cmd_queue, "Tarkov Item Analyzer")
+
+    # End of the main app.
+    root.mainloop()
+
 
 if __name__ == "__main__":
     main()

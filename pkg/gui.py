@@ -19,11 +19,15 @@ from datetime import datetime, timedelta
 from threading import Thread, Lock
 from typing import Optional
 
+import keyboard
 import psutil
 import pytesseract
 import tkinter as Tk
 from pubsub import pub
-from tkinter import Button, Label, messagebox, OptionMenu, StringVar, TclError, Toplevel, N, S, E, W
+from tkinter import (
+    END, Button, Entry, Label, messagebox, OptionMenu,
+    StringVar, TclError, Toplevel, N, S, E, W
+)
 
 from .TIPA import ProcessManager
 from logger_config import logger
@@ -356,6 +360,7 @@ class SettingsMenu(OtherFrame):
     def __init__(self) -> None:
         super().__init__(SettingsMenu.TITLE)
 
+        self.geometry("500x300")
         self.restart_required = False
 
         # Menu bar
@@ -376,20 +381,26 @@ class SettingsMenu(OtherFrame):
         self.debug_level_label = Tk.Label(self, text="Debug Level:")
         self.debug_level_label.grid(row=3, column=0, sticky=W)
         self.debug_level_var = StringVar(self)
-        self.debug_level_var.set("INFO")  # Default value
+        self.debug_level_var.set("INFO")
         self.debug_level_options = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         self.debug_level_menu = OptionMenu(self, self.debug_level_var, *self.debug_level_options)
         self.debug_level_menu.grid(row=3, column=1, sticky=W+E)
+
+        # Create a label and text box for the Tarkov interact keybinding
+        self.interact_key_label = Label(self, text="Tarkov Interact Keybinding:")
+        self.interact_key_label.grid(row=4, column=0, sticky=W)
+        self.interact_key_entry = Entry(self, width=5)
+        self.interact_key_entry.grid(row=4, column=1, sticky=W)
 
         # Load settings from the JSON file
         self.load_settings()
 
         # Create a save button
         self.save_btn = Tk.Button(self, text="Save", command=self.save_settings)
-        self.save_btn.grid(row=4, column=0, columnspan=2, sticky=W+E+N)
+        self.save_btn.grid(row=5, column=0, columnspan=2, sticky=W+E+N)
 
-    def update_settings(self, settings: dict) -> bool:
-        """Update application settings with validation."""
+    def apply_settings(self, settings: dict) -> bool:
+        """Aly application settings with validation."""
         with Lock():  # Add a class-level lock
             tesseract_path = settings.get("tesseract_path")
             if tesseract_path and not os.path.isfile(tesseract_path):
@@ -401,16 +412,19 @@ class SettingsMenu(OtherFrame):
                 messagebox.showinfo("Save Failed", f"Invalid debug level: {debug_level}")
                 return False
 
+            interact_key = settings.get("interact_key", "f")
+            try:
+                keyboard.key_to_scan_codes(interact_key)
+            except ValueError:
+                messagebox.showinfo("Save Failed", f"Invalid interact key: {interact_key}")
+                return False
+
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
             logger.setLevel(debug_level)
 
-            # Save the updated settings to the JSON file
-            with open("_internal/settings.json", "w") as settings_file:
-                json.dump(settings, settings_file, indent=4)
-
             return True
 
-    def load_settings(self) -> None:
+    def load_settings(self) -> dict[str, str] | None:
         # Check if the settings file exists
         if os.path.exists("_internal/settings.json"):
             with open("_internal/settings.json") as settings_file:
@@ -419,29 +433,44 @@ class SettingsMenu(OtherFrame):
                 self.tesseract_path_entry.insert(0, tesseract_path)
                 debug_level = settings.get("debug_level", "INFO")
                 self.debug_level_var.set(debug_level)
+                interact_key = settings.get("interact_key", "f")
+                self.interact_key_entry.delete(0, END)
+                self.interact_key_entry.insert(0, interact_key)
 
-        self.update_settings(settings)
+        self.apply_settings(settings)
+
+        return settings
 
     def save_settings(self) -> None:
         # Get the form values
         tesseract_path = self.tesseract_path_entry.get()
         debug_level = self.debug_level_var.get()
+        interact_key = self.interact_key_entry.get()
 
         # Create a dictionary to hold the settings
         settings = {
             "tesseract_path": tesseract_path,
             "debug_level": debug_level,
+            "interact_key": interact_key,
         }
 
         # Load the settings from the JSON file
         if os.path.exists("_internal/settings.json"):
-            with open("_internal/settings.json", "r") as settings_file:
+            with open("_internal/settings.json") as settings_file:
                 old_settings = json.load(settings_file)
                 old_tesseract_path = old_settings.get("tesseract_path", "")
         else:
             old_tesseract_path = ""
 
-        if not self.update_settings(settings):
+        if not self.apply_settings(settings):
+            return
+
+        # Save the updated settings to the JSON file
+        try:
+            with open("_internal/settings.json", "w") as settings_file:
+                json.dump(settings, settings_file, indent=4)
+        except IOError as e:
+            messagebox.showerror("Error", f"Failed to save settings: {e}")
             return
 
         # Optionally, show a message box to confirm the save

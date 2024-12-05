@@ -24,7 +24,10 @@ import psutil
 import pytesseract
 import tkinter as Tk
 from pubsub import pub
-from tkinter import END, Button, Entry, Label, messagebox, OptionMenu, StringVar, TclError, Toplevel, N, S, E, W
+from tkinter import (
+    END, Button, Entry, Label, messagebox, OptionMenu,
+    StringVar, TclError, Toplevel, N, S, E, W
+)
 
 from .TIPA import ProcessManager
 from logger_config import logger
@@ -463,8 +466,12 @@ class SettingsMenu(OtherFrame):
             return
 
         # Save the updated settings to the JSON file
-        with open("_internal/settings.json", "w") as settings_file:
-            json.dump(settings, settings_file, indent=4)
+        try:
+            with open("_internal/settings.json", "w") as settings_file:
+                json.dump(settings, settings_file, indent=4)
+        except IOError as e:
+            messagebox.showerror("Error", f"Failed to save settings: {e}")
+            return
 
         # Optionally, show a message box to confirm the save
         if tesseract_path != old_tesseract_path:

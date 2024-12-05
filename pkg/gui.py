@@ -357,6 +357,7 @@ class SettingsMenu(OtherFrame):
     def __init__(self) -> None:
         super().__init__(SettingsMenu.TITLE)
 
+        self.geometry("500x300")
         self.restart_required = False
 
         # Menu bar
@@ -387,7 +388,6 @@ class SettingsMenu(OtherFrame):
         self.interact_key_label.grid(row=4, column=0, sticky=W)
         self.interact_key_entry = Entry(self, width=5)
         self.interact_key_entry.grid(row=4, column=1, sticky=W)
-        self.interact_key_entry.insert(0, "f")
 
         # Load settings from the JSON file
         self.load_settings()
@@ -425,7 +425,7 @@ class SettingsMenu(OtherFrame):
 
             return True
 
-    def load_settings(self) -> None:
+    def load_settings(self) -> dict[str, str] | None:
         # Check if the settings file exists
         if os.path.exists("_internal/settings.json"):
             with open("_internal/settings.json") as settings_file:
@@ -439,6 +439,8 @@ class SettingsMenu(OtherFrame):
                 self.interact_key_entry.insert(0, interact_key)
 
         self.update_settings(settings)
+
+        return settings
 
     def save_settings(self) -> None:
         # Get the form values

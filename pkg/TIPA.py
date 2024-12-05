@@ -86,9 +86,13 @@ class ProcessManager(threading.Thread):
         self.capture_screenshots()
 
     def capture_screenshots(self) -> None:
-        with open("_internal/settings.json", "r") as settings_file:
-            settings = json.load(settings_file)
-            interact_key = settings.get("interact_key", "f")
+        try:
+            with open("_internal/settings.json", "r") as settings_file:
+                settings = json.load(settings_file)
+                interact_key = settings.get("interact_key", "f")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to load settings: {e}")
+            interact_key = "f"
 
         keyboard.on_press_key(key=interact_key, callback=self.on_release)
 
@@ -99,11 +103,17 @@ class ProcessManager(threading.Thread):
                 self.listen = True
 
                 keyboard.unhook_key(interact_key)
-                with open("_internal/settings.json", "r") as settings_file:
-                    settings = json.load(settings_file)
-                    interact_key = settings.get("interact_key", "f")
-                # Re-register the keyboard interact key
-                keyboard.on_press_key(key=interact_key, callback=self.on_release)
+                try:
+                    with open("_internal/settings.json", "r") as settings_file:
+                        settings = json.load(settings_file)
+                        interact_key = settings.get("interact_key", "f")
+                    # Re-register the keyboard interact key
+                    keyboard.on_press_key(key=interact_key, callback=self.on_release)
+
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    logger.error(f"Failed to reload settings: {e}")
+                    interact_key = "f"
+                    keyboard.on_press_key(key=interact_key, callback=self.on_release)
 
                 self.resumeEvent.clear()
 
@@ -411,13 +421,13 @@ class MessageFunc():
         if inventory:
             return (
                 (self.mouse_pos["x"] - 16, self.mouse_pos["y"] - 42, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
-                (self.mouse_pos["x"] - 400, self.mouse_pos["y"] - 65, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10)
+                (self.mouse_pos["x"] - 400, self.mouse_pos["y"] - 65, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
             )
 
         width, height = self.img.size
         return (
             ((width / 2) - 39, (height / 2) + 42, (width / 2) + 40, (height / 2) + 57),
-            ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
+            ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57),
         )
 
     def extract_text(self, image: MatLike) -> tuple[str, MatLike]:
@@ -509,9 +519,7 @@ class MessageFunc():
     def validate_wordlist(self, wordlist: list) -> bool:
         if len(wordlist) == 0 or (len(wordlist) == 1 and len(wordlist[0]) <= 2):
             return False
-        if wordlist[0] == "Body":
-            return False
-        return True
+        return wordlist[0] == "Body"
 
     def correct_text(self, wordlist: list) -> str:
         corrected_text = " ".join(wordlist)
@@ -546,7 +554,7 @@ class MessageFunc():
             raise ValueError(f"Invalid site: {site}")
 
         params = {
-            'q': f'tarkov {site} {search_text}'
+            'q': f'tarkov {site} {search_text}',
         }
 
         return f"{base_urls[site]}?{urlencode(params)}"

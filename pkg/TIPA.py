@@ -12,6 +12,7 @@
 '''
 
 import atexit
+import json
 import os
 import re
 import tempfile
@@ -85,15 +86,27 @@ class ProcessManager(threading.Thread):
         self.capture_screenshots()
 
     def capture_screenshots(self) -> None:
-        # Register the keyboard event once
-        keyboard.on_press_key(key="f", callback=self.on_release)
+        with open("_internal/settings.json", "r") as settings_file:
+            settings = json.load(settings_file)
+            interact_key = settings.get("interact_key", "f")
+
+        keyboard.on_press_key(key=interact_key, callback=self.on_release)
 
         # Take the screenshot for the item name (in inventory/stash)
         while not self.need_quit:
             if not self.listen:
                 self.resumeEvent.wait()
                 self.listen = True
+
+                keyboard.unhook_key(interact_key)
+                with open("_internal/settings.json", "r") as settings_file:
+                    settings = json.load(settings_file)
+                    interact_key = settings.get("interact_key", "f")
+                # Re-register the keyboard interact key
+                keyboard.on_press_key(key=interact_key, callback=self.on_release)
+
                 self.resumeEvent.clear()
+
             try:
                 self.img = ImageGrab.grab()
                 time.sleep(0.1)
@@ -239,7 +252,7 @@ class MessageFunc():
 
             diff_num = self.mse(check_img, compare_img)
             is_inventory = self.determine_inventory(diff_num)
-            
+
             search_areas = self.get_search_areas(is_inventory)
             # Save the cropped screen image
             self.img.crop(search_areas[0]).save(temp_files[1], dpi=(500, 500))
@@ -283,7 +296,7 @@ class MessageFunc():
 
                     elif self.debug_mode >= 1:
                         logger.debug(f"Extracted Text: {text}")
-                        
+
                     wordlist = self.clean_text(text)
 
                     if not self.validate_wordlist(wordlist):
@@ -348,7 +361,7 @@ class MessageFunc():
         '''
         if imageA.shape != imageB.shape:
             raise ValueError("Input images must have the same dimensions.")
-        
+
         # Calculate the mean squared error using NumPy's built-in functions and
         # Return the MSE, the lower the error, the more "similar" the two images are.
         return np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
@@ -360,7 +373,7 @@ class MessageFunc():
         # Get the multiprocess lock and update the GUI window
         with lock:
             self.gui_queue.put([popup_str, self.display_info_init])
-    
+
     def create_temp_files(self) -> tuple[str, ...]:
         """Create temporary files with proper cleanup."""
         temp_files = []
@@ -372,11 +385,11 @@ class MessageFunc():
                 mode="w+b"
             ) as temp:
                 temp_files.append(temp.name)
-        
+
         # Register cleanup handler
         atexit.register(lambda: [os.unlink(f) for f in temp_files if os.path.exists(f)])
         return tuple(temp_files)
-    
+
     def show_image(self, image: MatLike, title: str, message: str, use_waitkey: bool = True) -> None:
         logger.info(message)
         cv2.imshow(title, image)
@@ -393,20 +406,20 @@ class MessageFunc():
         if self.debug_mode >= 1:
             logger.info("In raid screenshot")
         return False
-        
+
     def get_search_areas(self, inventory: bool) -> tuple:
         if inventory:
             return (
                 (self.mouse_pos["x"] - 16, self.mouse_pos["y"] - 42, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10),
                 (self.mouse_pos["x"] - 400, self.mouse_pos["y"] - 65, self.mouse_pos["x"] + 420, self.mouse_pos["y"] - 10)
             )
-        
+
         width, height = self.img.size
         return (
             ((width / 2) - 39, (height / 2) + 42, (width / 2) + 40, (height / 2) + 57),
             ((width / 2) - 32, (height / 2) + 42, (width / 2) + 32, (height / 2) + 57)
         )
-    
+
     def extract_text(self, image: MatLike) -> tuple[str, MatLike]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, threshold = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
@@ -414,7 +427,7 @@ class MessageFunc():
 
     def clean_text(self, text: str) -> list:
         wordlist = text.strip().split()
-        
+
         if self.debug_mode >= 1:
             logger.info(f"{wordlist} {wordlist[len(wordlist)-1]}")
 
@@ -492,14 +505,14 @@ class MessageFunc():
             self.show_image(image, "final_image", "Showing final image")
 
         return image
-    
+
     def validate_wordlist(self, wordlist: list) -> bool:
         if len(wordlist) == 0 or (len(wordlist) == 1 and len(wordlist[0]) <= 2):
             return False
         if wordlist[0] == "Body":
             return False
         return True
-    
+
     def correct_text(self, wordlist: list) -> str:
         corrected_text = " ".join(wordlist)
 
@@ -519,23 +532,23 @@ class MessageFunc():
         rep = {re.escape(k): v for k, v in rep.items()}
         pattern = re.compile("|".join(rep.keys()))
         return pattern.sub(lambda m: rep[re.escape(m.group(0))], corrected_text).replace("__", "_").lstrip("()").strip("_-.,").replace("/", "_").replace("_Version", "")
-    
+
     def construct_search_url(self, site: str, search_text: str) -> str:
         if not search_text:
             return None
-        
+
         base_urls = {
             'market': 'https://www.google.com/search',
             'wiki': 'https://www.google.com/search'
         }
-        
+
         if site not in base_urls:
             raise ValueError(f"Invalid site: {site}")
-            
+
         params = {
             'q': f'tarkov {site} {search_text}'
         }
-        
+
         return f"{base_urls[site]}?{urlencode(params)}"
 
 
@@ -603,7 +616,7 @@ class MessageFunc():
         except Exception as e:
             logger.exception(f"Error: Couldn't get item url from {site} search: {e}")
             return None
-        
+
     def fetch_pages(self, URL: str, true_name: str, corrected_text: str) -> tuple:
         tryCounter = 1
         tryLimit = 3
@@ -632,7 +645,7 @@ class MessageFunc():
                     URL = f"https://tarkov-market.com/item/{corrected_text}"
 
                 tryCounter = tryCounter + 1
-                
+
         if tryCounter > tryLimit:
             if self.debug_mode >= 1:
                 logger.warning("Try limit reached on tarkov-market page")

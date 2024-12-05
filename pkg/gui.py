@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from threading import Thread, Lock
 from typing import Optional
 
+import keyboard
 import psutil
 import pytesseract
 import tkinter as Tk
@@ -409,7 +410,9 @@ class SettingsMenu(OtherFrame):
                 return False
 
             interact_key = settings.get("interact_key", "f")
-            if len(interact_key) != 1:
+            try:
+                keyboard.key_to_scan_codes(interact_key)
+            except ValueError:
                 messagebox.showinfo("Save Failed", f"Invalid interact key: {interact_key}")
                 return False
 

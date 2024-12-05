@@ -453,7 +453,7 @@ class SettingsMenu(OtherFrame):
 
         # Load the settings from the JSON file
         if os.path.exists("_internal/settings.json"):
-            with open("_internal/settings.json", "r") as settings_file:
+            with open("_internal/settings.json") as settings_file:
                 old_settings = json.load(settings_file)
                 old_tesseract_path = old_settings.get("tesseract_path", "")
         else:

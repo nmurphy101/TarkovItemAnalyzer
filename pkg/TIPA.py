@@ -519,7 +519,7 @@ class MessageFunc():
     def validate_wordlist(self, wordlist: list) -> bool:
         if len(wordlist) == 0 or (len(wordlist) == 1 and len(wordlist[0]) <= 2):
             return False
-        return wordlist[0] == "Body"
+        return not wordlist[0] == "Body"
 
     def correct_text(self, wordlist: list) -> str:
         corrected_text = " ".join(wordlist)

@@ -396,8 +396,8 @@ class SettingsMenu(OtherFrame):
         self.save_btn = Tk.Button(self, text="Save", command=self.save_settings)
         self.save_btn.grid(row=5, column=0, columnspan=2, sticky=W+E+N)
 
-    def update_settings(self, settings: dict) -> bool:
-        """Update application settings with validation."""
+    def apply_settings(self, settings: dict) -> bool:
+        """Aly application settings with validation."""
         with Lock():  # Add a class-level lock
             tesseract_path = settings.get("tesseract_path")
             if tesseract_path and not os.path.isfile(tesseract_path):
@@ -419,10 +419,6 @@ class SettingsMenu(OtherFrame):
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
             logger.setLevel(debug_level)
 
-            # Save the updated settings to the JSON file
-            with open("_internal/settings.json", "w") as settings_file:
-                json.dump(settings, settings_file, indent=4)
-
             return True
 
     def load_settings(self) -> dict[str, str] | None:
@@ -438,7 +434,7 @@ class SettingsMenu(OtherFrame):
                 self.interact_key_entry.delete(0, END)
                 self.interact_key_entry.insert(0, interact_key)
 
-        self.update_settings(settings)
+        self.apply_settings(settings)
 
         return settings
 
@@ -463,8 +459,12 @@ class SettingsMenu(OtherFrame):
         else:
             old_tesseract_path = ""
 
-        if not self.update_settings(settings):
+        if not self.apply_settings(settings):
             return
+
+        # Save the updated settings to the JSON file
+        with open("_internal/settings.json", "w") as settings_file:
+            json.dump(settings, settings_file, indent=4)
 
         # Optionally, show a message box to confirm the save
         if tesseract_path != old_tesseract_path:
